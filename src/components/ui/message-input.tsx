@@ -19,6 +19,12 @@ interface MessageInputBaseProps
   isGenerating: boolean
   enableInterrupt?: boolean
   transcribeAudio?: (blob: Blob) => Promise<string>
+
+  // Voice props
+  isListening?: boolean
+  startListening?: () => void
+  stopListening?: () => void
+  isSpeechSupported?: boolean
 }
 
 interface MessageInputWithoutAttachmentProps extends MessageInputBaseProps {
@@ -44,18 +50,22 @@ export function MessageInput({
   isGenerating,
   enableInterrupt = true,
   transcribeAudio,
+  isListening: externalIsListening,
+  startListening,
+  stopListening,
+  isSpeechSupported: externalIsSpeechSupported,
   ...props
 }: MessageInputProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [showInterruptPrompt, setShowInterruptPrompt] = useState(false)
 
   const {
-    isListening,
-    isSpeechSupported,
+    isListening: internalIsListening,
+    isSpeechSupported: internalIsSpeechSupported,
     isRecording,
     isTranscribing,
     audioStream,
-    toggleListening,
+    toggleListening: internalToggleListening,
     stopRecording,
   } = useAudioRecording({
     transcribeAudio,
@@ -63,6 +73,21 @@ export function MessageInput({
       props.onChange?.({ target: { value: text } } as any)
     },
   })
+
+  const isListening = externalIsListening ?? internalIsListening
+  const isSpeechSupported = externalIsSpeechSupported ?? internalIsSpeechSupported
+
+  const toggleListening = () => {
+    if (externalIsListening !== undefined && startListening && stopListening) {
+      if (externalIsListening) {
+        stopListening()
+      } else {
+        startListening()
+      }
+    } else {
+      internalToggleListening()
+    }
+  }
 
   useEffect(() => {
     if (!isGenerating) {

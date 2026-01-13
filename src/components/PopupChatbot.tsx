@@ -39,5 +39,5 @@ export function PopupChatbot({
                 <AgentChat {...props} className="h-full w-full" />
             </PopoverContent>
         </Popover>
-    ) as any
+    )
 }

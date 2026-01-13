@@ -1,22 +1,24 @@
 "use client"
 
-import {
+import React, {
   forwardRef,
   useCallback,
   useRef,
   useState,
   type ReactElement,
 } from "react"
-import { ArrowDown, ThumbsDown, ThumbsUp } from "lucide-react"
+import { ArrowDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useAutoScroll } from "@/hooks/use-auto-scroll"
 import { Button } from "@/components/ui/button"
 import { type Message } from "@/components/ui/chat-message"
 import { CopyButton } from "@/components/ui/copy-button"
+import { SpeakButton } from "@/components/ui/speak-button"
 import { MessageInput } from "@/components/ui/message-input"
 import { MessageList } from "@/components/ui/message-list"
 import { PromptSuggestions } from "@/components/ui/prompt-suggestions"
+import Feedback from "@/components/ui/feedback"
 
 interface ChatPropsBase {
   handleSubmit: (
@@ -36,6 +38,13 @@ interface ChatPropsBase {
   setMessages?: (messages: any[]) => void
   transcribeAudio?: (blob: Blob) => Promise<string>
   placeholder?: string
+
+  // Voice props
+  voiceConfig?: any
+  isListening?: boolean
+  startListening?: () => void
+  stopListening?: () => void
+  isSpeechSupported?: boolean
 }
 
 interface ChatPropsWithoutSuggestions extends ChatPropsBase {
@@ -64,6 +73,11 @@ export function Chat({
   setMessages,
   transcribeAudio,
   placeholder,
+  voiceConfig,
+  isListening,
+  startListening,
+  stopListening,
+  isSpeechSupported,
 }: ChatProps) {
   const lastMessage = messages.at(-1)
   const isEmpty = messages.length === 0
@@ -158,39 +172,24 @@ export function Chat({
 
   const messageOptions = useCallback(
     (message: Message) => ({
-      actions: onRateResponse ? (
-        <>
-          <div className="border-r pr-1">
-            <CopyButton
-              content={message.content}
-              copyMessage="Copied response to clipboard!"
-            />
-          </div>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={() => onRateResponse(message.id, "thumbs-up")}
-          >
-            <ThumbsUp className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={() => onRateResponse(message.id, "thumbs-down")}
-          >
-            <ThumbsDown className="h-4 w-4" />
-          </Button>
-        </>
-      ) : (
-        <CopyButton
-          content={message.content}
-          copyMessage="Copied response to clipboard!"
-        />
+      actions: (
+        <div className="flex items-center gap-1">
+          <CopyButton
+            content={message.content}
+            copyMessage="Copied to clipboard!"
+          />
+          {message.content && (
+            <SpeakButton content={message.content} voiceConfig={voiceConfig} />
+          )}
+          {onRateResponse && message.content && message.role === "assistant" && (
+            <Feedback messageId={message.id} onRateResponse={onRateResponse} />
+          )}
+        </div>
       ),
+      isGenerating:
+        isGenerating && message.role === "assistant" && !message.content,
     }),
-    [onRateResponse]
+    [onRateResponse, isGenerating, voiceConfig]
   )
 
   return (
@@ -251,6 +250,10 @@ export function Chat({
               isGenerating={isGenerating}
               transcribeAudio={transcribeAudio}
               placeholder={placeholder}
+              isListening={isListening}
+              startListening={startListening}
+              stopListening={stopListening}
+              isSpeechSupported={isSpeechSupported}
             />
           )}
         </ChatForm>
