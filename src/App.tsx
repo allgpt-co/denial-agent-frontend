@@ -2,10 +2,10 @@ import { AgentChat } from './components/AgentChat'
 import './index.css'
 
 const SUGGESTIONS = [
-  'Analyze a new EDI 835 file for denials',
-  'Research the CARC 50 denial for BCBS North Dakota',
-  'Sort claims by resolution probability',
-  'Draft an appeal for a specific claim ID',
+  'Show me the top 50 patient records',
+  'Find patient details by name or MRN',
+  'Get insurance policy information for a patient',
+  'Search for claims by patient ID',
 ]
 
 function App() {
@@ -14,12 +14,11 @@ function App() {
       <main className="flex-1 overflow-hidden">
         <AgentChat
           baseUrl="http://localhost:8080"
-          agent="denial-resolver-agent"
-          model="gpt-5.1"
+          agent="rcm-agent"
+          model="gpt-4o"
           enableStreaming={true}
-          showSettings={false}
+          showSettings={true}
           showHeader={true}
-          suggestions={SUGGESTIONS}
           onError={(error) => {
             console.error('Agent error:', error)
           }}

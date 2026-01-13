@@ -7,7 +7,7 @@ import {
   useState,
   type ReactElement,
 } from "react"
-import { ArrowDown, ThumbsDown, ThumbsUp } from "lucide-react"
+import { ArrowDown, ThumbsDown, ThumbsUp, Volume2, Square } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { useAutoScroll } from "@/hooks/use-auto-scroll"
@@ -36,6 +36,17 @@ interface ChatPropsBase {
   setMessages?: (messages: any[]) => void
   transcribeAudio?: (blob: Blob) => Promise<string>
   placeholder?: string
+
+  // Voice props
+  isListening?: boolean
+  startListening?: () => void
+  stopListening?: () => void
+  isSpeechSupported?: boolean
+
+  // Text-to-Speech props
+  speak?: (text: string) => void
+  stopSpeaking?: () => void
+  isSpeaking?: boolean
 }
 
 interface ChatPropsWithoutSuggestions extends ChatPropsBase {
@@ -64,6 +75,13 @@ export function Chat({
   setMessages,
   transcribeAudio,
   placeholder,
+  isListening,
+  startListening,
+  stopListening,
+  isSpeechSupported,
+  speak,
+  stopSpeaking,
+  isSpeaking,
 }: ChatProps) {
   const lastMessage = messages.at(-1)
   const isEmpty = messages.length === 0
@@ -158,39 +176,59 @@ export function Chat({
 
   const messageOptions = useCallback(
     (message: Message) => ({
-      actions: onRateResponse ? (
+      actions: (
         <>
-          <div className="border-r pr-1">
+          {speak && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6"
+              onClick={() => {
+                if (isSpeaking && stopSpeaking) {
+                  stopSpeaking()
+                } else {
+                  speak(message.content)
+                }
+              }}
+            >
+              {isSpeaking ? <Square className="h-3 w-3 fill-current" /> : <Volume2 className="h-4 w-4" />}
+            </Button>
+          )}
+          {onRateResponse ? (
+            <>
+              <div className="border-r pr-1 inline-flex items-center h-4 my-auto mx-1">
+                <CopyButton
+                  content={message.content}
+                  copyMessage="Copied response to clipboard!"
+                />
+              </div>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6"
+                onClick={() => onRateResponse(message.id, "thumbs-up")}
+              >
+                <ThumbsUp className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-6 w-6"
+                onClick={() => onRateResponse(message.id, "thumbs-down")}
+              >
+                <ThumbsDown className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
             <CopyButton
               content={message.content}
               copyMessage="Copied response to clipboard!"
             />
-          </div>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={() => onRateResponse(message.id, "thumbs-up")}
-          >
-            <ThumbsUp className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-6 w-6"
-            onClick={() => onRateResponse(message.id, "thumbs-down")}
-          >
-            <ThumbsDown className="h-4 w-4" />
-          </Button>
+          )}
         </>
-      ) : (
-        <CopyButton
-          content={message.content}
-          copyMessage="Copied response to clipboard!"
-        />
       ),
     }),
-    [onRateResponse]
+    [onRateResponse, speak, isSpeaking, stopSpeaking]
   )
 
   return (
@@ -251,6 +289,10 @@ export function Chat({
               isGenerating={isGenerating}
               transcribeAudio={transcribeAudio}
               placeholder={placeholder}
+              isListening={isListening}
+              startListening={startListening}
+              stopListening={stopListening}
+              isSpeechSupported={isSpeechSupported}
             />
           )}
         </ChatForm>

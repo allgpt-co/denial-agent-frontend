@@ -1,5 +1,7 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { AgentClient } from '@/lib/agent-client'
+import { useVoice } from '@/hooks/use-voice'
+import { VoiceSettings } from '@/components/ui/voice-settings'
 import { Chat } from '@/components/ui/chat'
 import type { Message } from '@/components/ui/chat-message'
 import { Button } from '@/components/ui/button'
@@ -25,7 +27,7 @@ import {
 } from '@/components/ui/popover'
 import { History, Plus, Settings2, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Thread, ChatMessage as AgentChatMessage } from '@/lib/types'
+import type { Thread, ChatMessage as AgentChatMessage, StreamEventUpdate } from '@/lib/types'
 
 export interface AgentChatProps {
     baseUrl: string
@@ -43,44 +45,54 @@ export interface AgentChatProps {
     direction?: 'left' | 'right' | 'top' | 'bottom'
     input?: string
     setInput?: (value: string) => void
+    threadId?: string
 }
 
 export function AgentChat({
     baseUrl,
     agent: initialAgent = 'default',
-    userId,
+    userId = undefined,
     enableStreaming = true,
     suggestions = [],
-    onError,
-    onRateResponse,
-    className,
+    onError = undefined,
+    onRateResponse = undefined,
+    className = undefined,
     showSettings = true,
     showHeader = true,
     placeholder = '',
     direction = 'right',
-    input: propInput,
-    setInput: propSetInput,
-    model: initialModel,
+    input: propInput = undefined,
+    setInput: propSetInput = undefined,
+    model: initialModel = undefined,
+    threadId = undefined,
 }: AgentChatProps) {
+    // State for Configuration
+    const [currentAgent, setCurrentAgent] = useState<string>(initialAgent)
+    const [currentModel, setCurrentModel] = useState<string>(initialModel || '')
+
     // State for Chat
     const [messages, setMessages] = useState<Message[]>([])
     const [internalInput, setInternalInput] = useState('')
 
     const input = propInput !== undefined ? propInput : internalInput
-    const setInput = (value: string) => {
+    const setInput = (value: string | ((prev: string) => string)) => {
         if (propInput === undefined) {
             setInternalInput(value)
         }
-        propSetInput?.(value)
+
+        if (propSetInput) {
+            const newValue = typeof value === 'function'
+                ? value(input)
+                : value
+            propSetInput(newValue)
+        }
     }
     const [isGenerating, setIsGenerating] = useState(false)
     const [followupSuggestions, setFollowupSuggestions] = useState<string[]>([])
 
-    // State for Agent/Model Configuration
+    // State for Client
     const [client, setClient] = useState<AgentClient | null>(null)
-    const [currentAgent, setCurrentAgent] = useState<string>(initialAgent)
-    const [currentModel, setCurrentModel] = useState<string>(initialModel || '')
-    const [availableAgents, setAvailableAgents] = useState<{ key: string; description: string }[]>([])
+    const [availableAgents, setAvailableAgents] = useState<{ key: string; description: string; suggestions?: string[] }[]>([])
     const [availableModels, setAvailableModels] = useState<string[]>([])
 
     // State for UI Toggles
@@ -88,15 +100,28 @@ export function AgentChat({
 
     // State for History
     const [threads, setThreads] = useState<Thread[]>([])
-    const [currentThreadId, setCurrentThreadId] = useState<string | null>(null)
+    const [currentThreadId, setCurrentThreadId] = useState<string | null>(threadId || null)
+
+    // Load thread history when threadId prop changes
+    useEffect(() => {
+        if (threadId) {
+            setCurrentThreadId(threadId)
+            if (client) {
+                loadThread(threadId)
+            }
+        }
+    }, [threadId, client])
 
     // Initialize Client
     useEffect(() => {
         const initClient = async () => {
             try {
+                // If the agent is 'default', let the client pick the backend default
+                const agentToUse = currentAgent === 'default' ? null : currentAgent
+
                 const newClient = new AgentClient({
                     baseUrl,
-                    agent: currentAgent,
+                    agent: agentToUse,
                     getInfo: true,
                 })
 
@@ -106,8 +131,34 @@ export function AgentChat({
                 if (newClient.info) {
                     setAvailableAgents(newClient.info.agents)
                     setAvailableModels(newClient.info.models)
+
+                    // Sync currentAgent with whatever the client decided (e.g. if 'default' was used)
+                    if (newClient.agent) {
+                        setCurrentAgent(newClient.agent)
+                    }
+
                     if (!currentModel) {
                         setCurrentModel(newClient.info.default_model)
+                    }
+
+                    // Add agent description as welcome message if no messages exist
+                    if (messages.length === 0 && newClient.agent && newClient.info.agents) {
+                        const agentInfo = newClient.info.agents.find(a => a.key === newClient.agent)
+                        if (agentInfo?.description) {
+                            setMessages([{
+                                id: 'welcome-message',
+                                role: 'assistant',
+                                content: agentInfo.description,
+                                createdAt: new Date(),
+                            }])
+                        }
+                        // Set initial suggestions from agent info
+                        if (agentInfo?.suggestions && agentInfo.suggestions.length > 0) {
+                            setFollowupSuggestions(agentInfo.suggestions)
+                        } else if (suggestions && suggestions.length > 0) {
+                            // Fallback to prop suggestions if agent has none
+                            setFollowupSuggestions(suggestions)
+                        }
                     }
                 }
             } catch (err) {
@@ -116,7 +167,7 @@ export function AgentChat({
         }
 
         initClient()
-    }, [baseUrl, onError]) // Only re-init if baseUrl changes, we handle agent updates separately
+    }, [baseUrl]) // Only re-init if baseUrl changes
 
     // Update Client when Agent changes
     useEffect(() => {
@@ -165,8 +216,32 @@ export function AgentChat({
     }
 
     const handleNewChat = () => {
-        setMessages([])
-        setFollowupSuggestions([])
+        // Get the current agent's description to show as welcome message
+        if (client?.info?.agents && client.agent) {
+            const agentInfo = client.info.agents.find(a => a.key === client.agent)
+            if (agentInfo?.description) {
+                setMessages([{
+                    id: 'welcome-message',
+                    role: 'assistant',
+                    content: agentInfo.description,
+                    createdAt: new Date(),
+                }])
+            } else {
+                setMessages([])
+            }
+
+            // Restore agent suggestions
+            if (agentInfo?.suggestions && agentInfo.suggestions.length > 0) {
+                setFollowupSuggestions(agentInfo.suggestions)
+            } else if (suggestions && suggestions.length > 0) {
+                setFollowupSuggestions(suggestions)
+            } else {
+                setFollowupSuggestions([])
+            }
+        } else {
+            setMessages([])
+            setFollowupSuggestions(suggestions || [])
+        }
         setCurrentThreadId(null)
         setInput('')
         setIsHistoryOpen(false)
@@ -257,6 +332,15 @@ export function AgentChat({
                             }
                         })
                     } else if (typeof chunk === 'object' && chunk !== null) {
+                        if ('type' in chunk && (chunk as any).type === 'update') {
+                            const update = chunk as StreamEventUpdate
+                            if (update.updates.follow_up) {
+                                setFollowupSuggestions(update.updates.follow_up)
+                            } else if (update.updates.next_step_suggestions) {
+                                setFollowupSuggestions(update.updates.next_step_suggestions)
+                            }
+                            continue
+                        }
                         const msg = chunk as AgentChatMessage
 
                         if (msg.tool_calls && msg.tool_calls.length > 0) {
@@ -367,181 +451,222 @@ export function AgentChat({
         setInput(e.target.value)
     }
 
+    // Voice Support
+    const [autoSpeak, setAutoSpeak] = useState(false)
+    const {
+        isListening,
+        isSpeaking,
+        transcript,
+        startListening,
+        stopListening,
+        speak,
+        stopSpeaking,
+        voiceConfig,
+        updateConfig,
+        availableVoices,
+        selectedVoice,
+        setSelectedVoice,
+        isSynthesisSupported,
+        isRecognitionSupported,
+    } = useVoice({
+        onTranscript: (text, isFinal) => {
+            if (isFinal) {
+                // If final, append with space if needed
+                setInput((prev) => {
+                    const separator = prev && !prev.endsWith(' ') ? ' ' : ''
+                    return prev + separator + text
+                })
+            } else {
+                // We can't easily show interim results in the input without more complex state or ref
+                // For now, just wait for final. Or we could use a separate state for "preview".
+                // But useVoice accumulates transcript in `transcript` state too.
+                // The onTranscript gives us chunks.
+            }
+        },
+    })
+
+    // Auto-speak responses
+    // We want to speak when a new assistant message is complete and added to the list
+    // Since we stream, it's tricky.
+    // Strategy: Watch for `isGenerating` to flip from true to false.
+    // If it was true and now false, and the last message is assistant, speak it.
+    const prevIsGenerating = useRef(isGenerating)
+
+    useEffect(() => {
+        if (prevIsGenerating.current && !isGenerating && autoSpeak) {
+            const lastMsg = messages[messages.length - 1]
+            if (lastMsg?.role === 'assistant' && lastMsg.content) {
+                speak(lastMsg.content)
+            }
+        }
+        prevIsGenerating.current = isGenerating
+    }, [isGenerating, autoSpeak, messages, speak])
+
     return (
         <div className={cn("flex h-full w-full flex-col overflow-hidden", className)}>
             {/* Header / Settings Bar */}
             {showHeader && (
-                <div className="absolute top-0 left-0 right-0 z-30 transition-all duration-300">
-                    <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
-                        <div className="flex items-center justify-between rounded-2xl border border-border/40 bg-background/60 p-2.5 shadow-2xl backdrop-blur-2xl ring-1 ring-black/5">
-                            <div className="flex items-center gap-3.5 px-1.5">
-                                <div className="relative group">
-                                    <div className="absolute -inset-1 rounded-xl bg-gradient-to-tr from-primary to-primary/40 opacity-25 blur transition duration-300 group-hover:opacity-40" />
-                                    <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-primary to-primary/80 text-primary-foreground shadow-lg">
-                                        <Sparkles className="h-5.5 w-5.5" />
-                                    </div>
-                                    <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-background bg-emerald-500 shadow-sm" />
+                <div className="relative z-30 border-b border-border/50 bg-background/80 backdrop-blur-xl">
+                    <div className="flex items-center justify-between px-4 py-3">
+                        <div className="flex items-center gap-3">
+                            <div className="relative group">
+                                <div className="absolute -inset-1 rounded-xl bg-gradient-to-tr from-primary to-primary/40 opacity-25 blur transition duration-300 group-hover:opacity-40" />
+                                <div className="relative flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-tr from-primary to-primary/80 text-primary-foreground shadow-lg">
+                                    <Sparkles className="h-4.5 w-4.5" />
                                 </div>
-                                <div className="flex flex-col">
-                                    <h2 className="text-[15px] font-bold leading-tight tracking-tight text-foreground sm:text-base">
-                                        Agent Chat
-                                    </h2>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                        <div className="flex h-1.5 w-1.5">
-                                            <span className="animate-ping absolute inline-flex h-1.5 w-1.5 rounded-full bg-primary opacity-75"></span>
-                                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary"></span>
-                                        </div>
-                                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                                            {currentAgent} <span className="mx-1 opacity-30">|</span> {currentModel}
-                                        </p>
+                                <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-emerald-500 shadow-sm" />
+                            </div>
+                            <div className="flex flex-col">
+                                <h2 className="text-sm font-bold leading-tight tracking-tight text-foreground">
+                                    Agent Chat
+                                </h2>
+                                <div className="flex items-center gap-1.5 ">
+                                    <div className="flex h-1.5 w-1.5">
+                                        <span className="animate-ping absolute inline-flex h-1.5 w-1.5 rounded-full bg-primary opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-primary"></span>
                                     </div>
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                                        {currentAgent}
+                                    </p>
                                 </div>
                             </div>
+                        </div>
 
-                            <div className="flex items-center gap-2">
-                                <Sheet open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
-                                    <SheetTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={fetchHistory} title="Chat History" className="h-9 w-9 rounded-xl hover:bg-primary/5 hover:text-primary transition-colors">
-                                            <History className="h-4.5 w-4.5" />
+                        <div className="flex items-center gap-1">
+                            <Sheet open={isHistoryOpen} onOpenChange={setIsHistoryOpen}>
+                                <SheetTrigger asChild>
+                                    <Button variant="ghost" size="icon" onClick={fetchHistory} title="Chat History" className="h-8 w-8 rounded-lg hover:bg-primary/5 hover:text-primary transition-colors">
+                                        <History className="h-4 w-4" />
+                                    </Button>
+                                </SheetTrigger>
+                                <SheetContent side={direction} className="w-[300px] sm:w-[400px] border-l border-border/40 backdrop-blur-2xl">
+                                    <SheetHeader className="mb-6">
+                                        <SheetTitle className="text-xl font-bold tracking-tight">Chat History</SheetTitle>
+                                        <SheetDescription className="text-sm">
+                                            Select a previous conversation to continue.
+                                        </SheetDescription>
+                                    </SheetHeader>
+
+                                    <div className="px-2">
+                                        <Button
+                                            variant="outline"
+                                            className="w-full justify-start gap-2.5 rounded-xl border-dashed border-2 hover:border-primary/50 hover:bg-primary/5 transition-all text-sm font-medium"
+                                            onClick={handleNewChat}
+                                        >
+                                            <Plus className="h-4 w-4" /> New Conversation
                                         </Button>
-                                    </SheetTrigger>
-                                    <SheetContent side={direction} className="w-[300px] sm:w-[400px] border-l border-border/40 backdrop-blur-2xl">
-                                        <SheetHeader className="mb-6">
-                                            <SheetTitle className="text-xl font-bold tracking-tight">Chat History</SheetTitle>
-                                            <SheetDescription className="text-sm">
-                                                Select a previous conversation to continue.
-                                            </SheetDescription>
-                                        </SheetHeader>
+                                    </div>
 
-                                        <div className="px-2">
-                                            <Button
-                                                variant="outline"
-                                                className="w-full justify-start gap-2.5 rounded-xl border-dashed border-2 hover:border-primary/50 hover:bg-primary/5 transition-all text-sm font-medium"
-                                                onClick={handleNewChat}
-                                            >
-                                                <Plus className="h-4 w-4" /> New Conversation
-                                            </Button>
-                                        </div>
-
-                                        <div className="flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-220px)] pr-2 mt-6 custom-scrollbar">
-                                            {threads.length === 0 ? (
-                                                <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-                                                    <div className="h-12 w-12 rounded-full bg-muted/20 flex items-center justify-center mb-4 text-muted-foreground/40">
-                                                        <History className="h-6 w-6" />
-                                                    </div>
-                                                    <p className="text-sm font-medium text-muted-foreground">No recent conversations</p>
-                                                    <p className="text-xs text-muted-foreground/60 mt-1">Start chatting to see history here.</p>
+                                    <div className="flex flex-col gap-2 overflow-y-auto max-h-[calc(100vh-220px)] pr-2 mt-6 custom-scrollbar">
+                                        {threads.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                                                <div className="h-12 w-12 rounded-full bg-muted/20 flex items-center justify-center mb-4 text-muted-foreground/40">
+                                                    <History className="h-6 w-6" />
                                                 </div>
-                                            ) : (
-                                                threads.map((thread) => (
-                                                    <button
-                                                        key={thread.thread_id}
-                                                        className={cn(
-                                                            "group flex flex-col gap-1 w-full text-left p-3.5 rounded-xl transition-all duration-200 border border-transparent",
-                                                            currentThreadId === thread.thread_id
-                                                                ? "bg-primary/5 border-primary/20 shadow-sm"
-                                                                : "hover:bg-muted/50 hover:border-border/50"
-                                                        )}
-                                                        onClick={() => loadThread(thread.thread_id)}
-                                                    >
-                                                        <span className={cn(
-                                                            "font-semibold truncate text-[13px]",
-                                                            currentThreadId === thread.thread_id ? "text-primary" : "text-foreground"
-                                                        )}>
-                                                            {thread.title || "Untitled Conversation"}
-                                                        </span>
-                                                        <span className="text-[11px] text-muted-foreground flex items-center gap-2">
-                                                            {thread.updated_at ? new Date(thread.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "Recently"}
-                                                            <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
-                                                            {thread.updated_at ? new Date(thread.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
-                                                        </span>
-                                                    </button>
-                                                ))
-                                            )}
-                                        </div>
-                                    </SheetContent>
-                                </Sheet>
+                                                <p className="text-sm font-medium text-muted-foreground">No recent conversations</p>
+                                                <p className="text-xs text-muted-foreground/60 mt-1">Start chatting to see history here.</p>
+                                            </div>
+                                        ) : (
+                                            threads.map((thread) => (
+                                                <button
+                                                    key={thread.thread_id}
+                                                    className={cn(
+                                                        "group flex flex-col gap-1 w-full text-left p-3.5 rounded-xl transition-all duration-200 border border-transparent",
+                                                        currentThreadId === thread.thread_id
+                                                            ? "bg-primary/5 border-primary/20 shadow-sm"
+                                                            : "hover:bg-muted/50 hover:border-border/50"
+                                                    )}
+                                                    onClick={() => loadThread(thread.thread_id)}
+                                                >
+                                                    <span className={cn(
+                                                        "font-semibold truncate text-[13px]",
+                                                        currentThreadId === thread.thread_id ? "text-primary" : "text-foreground"
+                                                    )}>
+                                                        {thread.title || "Untitled Conversation"}
+                                                    </span>
+                                                    <span className="text-[11px] text-muted-foreground flex items-center gap-2">
+                                                        {thread.updated_at ? new Date(thread.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "Recently"}
+                                                        <span className="h-1 w-1 rounded-full bg-muted-foreground/30" />
+                                                        {thread.updated_at ? new Date(thread.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
+                                                    </span>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                </SheetContent>
+                            </Sheet>
 
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={handleNewChat}
-                                    title="New Chat"
-                                    className="h-9 w-9 rounded-xl hover:bg-primary/5 hover:text-primary transition-colors"
-                                >
-                                    <Plus className="h-4.5 w-4.5" />
-                                </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={handleNewChat}
+                                title="New Chat"
+                                className="h-8 w-8 rounded-lg hover:bg-primary/5 hover:text-primary transition-colors"
+                            >
+                                <Plus className="h-4 w-4" />
+                            </Button>
 
-                                {showSettings && (
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-9 w-9 rounded-xl hover:bg-primary/5 hover:text-primary transition-colors"
-                                            >
-                                                <Settings2 className="h-4.5 w-4.5" />
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent align="end" className="w-[280px] p-5 rounded-2xl shadow-2xl border-border/40 backdrop-blur-2xl ring-1 ring-black/5">
-                                            <div className="flex flex-col gap-5">
-                                                <div className="space-y-1.5">
-                                                    <h4 className="font-bold text-base leading-none tracking-tight">Configuration</h4>
-                                                    <p className="text-xs text-muted-foreground/80 leading-relaxed">
-                                                        Customize your AI agent and model settings for the current session.
-                                                    </p>
-                                                </div>
-                                                <div className="grid gap-4">
-                                                    <div className="flex flex-col gap-2">
-                                                        <label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70 px-0.5">Active Agent</label>
-                                                        <Select value={currentAgent} onValueChange={setCurrentAgent}>
-                                                            <SelectTrigger className="h-9 text-xs rounded-lg border-border/60 bg-muted/30 focus:ring-primary/20">
-                                                                <SelectValue placeholder="Select Agent" />
-                                                            </SelectTrigger>
-                                                            <SelectContent className="rounded-xl border-border/40 shadow-xl">
-                                                                {availableAgents.map((agent) => (
-                                                                    <SelectItem key={agent.key} value={agent.key} className="text-xs rounded-md my-0.5">
-                                                                        {agent.key}
-                                                                    </SelectItem>
-                                                                ))}
-                                                                {availableAgents.length === 0 && (
-                                                                    <SelectItem value={currentAgent || "default"}>{currentAgent || "Default"}</SelectItem>
-                                                                )}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-
-                                                    <div className="flex flex-col gap-2">
-                                                        <label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70 px-0.5">LLM Model</label>
-                                                        <Select value={currentModel} onValueChange={setCurrentModel}>
-                                                            <SelectTrigger className="h-9 text-xs rounded-lg border-border/60 bg-muted/30 focus:ring-primary/20">
-                                                                <SelectValue placeholder="Select Model" />
-                                                            </SelectTrigger>
-                                                            <SelectContent className="rounded-xl border-border/40 shadow-xl">
-                                                                {availableModels.map((model) => (
-                                                                    <SelectItem key={model} value={model} className="text-xs rounded-md my-0.5">
-                                                                        {model}
-                                                                    </SelectItem>
-                                                                ))}
-                                                                {availableModels.length === 0 && (
-                                                                    <SelectItem value={currentModel || "default"}>{currentModel || "Default"}</SelectItem>
-                                                                )}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
+                            {showSettings && (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 rounded-lg hover:bg-primary/5 hover:text-primary transition-colors"
+                                        >
+                                            <Settings2 className="h-4 w-4" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent align="end" className="w-[280px] p-5 rounded-2xl shadow-2xl border-border/40 backdrop-blur-2xl ring-1 ring-black/5">
+                                        <div className="flex flex-col gap-5">
+                                            <div className="space-y-1.5">
+                                                <h4 className="font-bold text-base leading-none tracking-tight">Configuration</h4>
+                                                <p className="text-xs text-muted-foreground/80 leading-relaxed">
+                                                    Customize your AI agent and model settings for the current session.
+                                                </p>
+                                            </div>
+                                            <div className="grid gap-4">
+                                                <div className="flex flex-col gap-2">
+                                                    <label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70 px-0.5">Active Agent</label>
+                                                    <Select value={currentAgent} onValueChange={setCurrentAgent}>
+                                                        <SelectTrigger className="h-9 text-xs rounded-lg border-border/60 bg-muted/30 focus:ring-primary/20">
+                                                            <SelectValue placeholder="Select Agent" />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="rounded-xl border-border/40 shadow-xl">
+                                                            {availableAgents.map((agent) => (
+                                                                <SelectItem key={agent.key} value={agent.key} className="text-xs rounded-md my-0.5">
+                                                                    {agent.key}
+                                                                </SelectItem>
+                                                            ))}
+                                                            {availableAgents.length === 0 && (
+                                                                <SelectItem value={currentAgent || "default"}>{currentAgent || "Default"}</SelectItem>
+                                                            )}
+                                                        </SelectContent>
+                                                    </Select>
                                                 </div>
                                             </div>
-                                        </PopoverContent>
-                                    </Popover>
-                                )}
-                            </div>
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
+                            )}
+
+                            <VoiceSettings
+                                voiceConfig={voiceConfig}
+                                onConfigChange={updateConfig}
+                                availableVoices={availableVoices}
+                                selectedVoice={selectedVoice}
+                                onVoiceChange={setSelectedVoice}
+                                autoSpeak={autoSpeak}
+                                onAutoSpeakChange={setAutoSpeak}
+                                className="h-8 w-8 rounded-lg hover:bg-primary/5 hover:text-primary transition-colors"
+                            />
                         </div>
                     </div>
                 </div>
             )}
 
             {/* Main Chat Area */}
-            <div className="flex-1 overflow-hidden relative bg-background pt-24">
+            <div className="flex-1 overflow-hidden relative bg-background">
                 <Chat
                     messages={messages}
                     handleSubmit={handleSubmit}
@@ -566,8 +691,14 @@ export function AgentChat({
                                 user_id: userId
                             })
 
-                            const { suggestions: newSuggestions, cleanContent } = extractSuggestions(response.content || '')
-                            if (newSuggestions.length > 0) setFollowupSuggestions(newSuggestions)
+                            if (response.suggestions && response.suggestions.length > 0) {
+                                setFollowupSuggestions(response.suggestions)
+                            } else {
+                                const { suggestions: nextSuggestions } = extractSuggestions(response.content || '')
+                                if (nextSuggestions.length > 0) setFollowupSuggestions(nextSuggestions)
+                            }
+
+                            const { cleanContent } = extractSuggestions(response.content || '')
 
                             setMessages(prev => [...prev, {
                                 id: response.id || crypto.randomUUID(),
@@ -582,11 +713,18 @@ export function AgentChat({
                             fetchHistory()
                         }
                     }}
-                    suggestions={messages.length === 0 ? suggestions : followupSuggestions}
+                    suggestions={followupSuggestions.length > 0 ? followupSuggestions : (messages.length === 0 ? suggestions : [])}
                     onRateResponse={onRateResponse}
                     placeholder={placeholder}
+                    isListening={isListening}
+                    startListening={startListening}
+                    stopListening={stopListening}
+                    isSpeechSupported={isRecognitionSupported}
+                    speak={speak}
+                    stopSpeaking={stopSpeaking}
+                    isSpeaking={isSpeaking}
                 />
             </div>
         </div>
-    ) as any
+    )
 }

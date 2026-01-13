@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { ArrowUp, Info, Loader2, Mic, Paperclip, Square } from "lucide-react"
+import { ChevronRight, Info, Loader2, Mic, Paperclip, Square } from "lucide-react"
 import { omit } from "remeda"
-
 import { cn } from "@/lib/utils"
 import { useAudioRecording } from "@/hooks/use-audio-recording"
 import { useAutosizeTextArea } from "@/hooks/use-autosize-textarea"
@@ -10,6 +9,13 @@ import { AudioVisualizer } from "@/components/ui/audio-visualizer"
 import { Button } from "@/components/ui/button"
 import { FilePreview } from "@/components/ui/file-preview"
 import { InterruptPrompt } from "@/components/ui/interrupt-prompt"
+import { PromptSuggestions } from "@/components/ui/prompt-suggestions"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface MessageInputBaseProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -19,6 +25,14 @@ interface MessageInputBaseProps
   isGenerating: boolean
   enableInterrupt?: boolean
   transcribeAudio?: (blob: Blob) => Promise<string>
+  suggestions?: string[]
+  append?: (message: { role: "user"; content: string }) => void
+
+  // Voice props
+  isListening?: boolean
+  startListening?: () => void
+  stopListening?: () => void
+  isSpeechSupported?: boolean
 }
 
 interface MessageInputWithoutAttachmentProps extends MessageInputBaseProps {
@@ -44,25 +58,46 @@ export function MessageInput({
   isGenerating,
   enableInterrupt = true,
   transcribeAudio,
+  suggestions,
+  append,
+  isListening: externalIsListening,
+  startListening,
+  stopListening,
+  isSpeechSupported: externalIsSpeechSupported,
   ...props
 }: MessageInputProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [showInterruptPrompt, setShowInterruptPrompt] = useState(false)
 
   const {
-    isListening,
-    isSpeechSupported,
+    isListening: internalIsListening,
+    isSpeechSupported: internalIsSpeechSupported,
     isRecording,
     isTranscribing,
     audioStream,
-    toggleListening,
+    toggleListening: internalToggleListening,
     stopRecording,
   } = useAudioRecording({
     transcribeAudio,
-    onTranscriptionComplete: (text: string) => {
+    onTranscriptionComplete: (text) => {
       props.onChange?.({ target: { value: text } } as any)
     },
   })
+
+  const isListening = externalIsListening ?? internalIsListening
+  const isSpeechSupported = externalIsSpeechSupported ?? internalIsSpeechSupported
+
+  const toggleListening = () => {
+    if (externalIsListening !== undefined && startListening && stopListening) {
+      if (externalIsListening) {
+        stopListening()
+      } else {
+        startListening()
+      }
+    } else {
+      internalToggleListening()
+    }
+  }
 
   useEffect(() => {
     if (!isGenerating) {
@@ -170,8 +205,8 @@ export function MessageInput({
     props.allowAttachments && props.files && props.files.length > 0
 
   useAutosizeTextArea({
-    ref: textAreaRef,
-    maxHeight: 240,
+    ref: textAreaRef as React.RefObject<HTMLTextAreaElement>,
+    maxHeight: 200,
     borderWidth: 1,
     dependencies: [props.value, showFileList],
   })
@@ -195,8 +230,14 @@ export function MessageInput({
         onStopRecording={stopRecording}
       />
 
+      {suggestions && append && suggestions.length > 0 && (
+        <div className="mb-2">
+          <PromptSuggestions label="" append={append} suggestions={suggestions} />
+        </div>
+      )}
+
       <div className="relative flex w-full items-center space-x-2">
-        <div className="relative flex-1 group/input">
+        <div className="relative flex-1">
           <textarea
             aria-label="Write your prompt here"
             placeholder={placeholder}
@@ -204,7 +245,7 @@ export function MessageInput({
             onPaste={onPaste}
             onKeyDown={onKeyDown}
             className={cn(
-              "z-10 w-full grow border border-muted-foreground border-2 resize-none rounded-2xl border-none bg-muted/80 backdrop-blur-xl p-4 pr-32 text-sm ring-offset-background transition-all placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 shadow-xl shadow-primary/5",
+              "z-10 w-full grow resize-none rounded-lg border border-input bg-background/50 backdrop-blur-sm p-4 pr-28 text-sm ring-offset-background transition-all duration-200 placeholder:text-muted-foreground/70 focus-visible:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:bg-background disabled:cursor-not-allowed disabled:opacity-50 shadow-sm",
               showFileList && "pb-20",
               className
             )}
@@ -213,8 +254,8 @@ export function MessageInput({
               : omit(props, ["allowAttachments"]))}
           />
 
-          {props.allowAttachments && showFileList && (
-            <div className="absolute inset-x-3 bottom-0 z-20 overflow-x-scroll py-3">
+          {props.allowAttachments && (
+            <div className="absolute inset-x-3 bottom-0 z-20 py-3">
               <div className="flex space-x-3">
                 <AnimatePresence mode="popLayout">
                   {props.files?.map((file) => {
@@ -243,60 +284,35 @@ export function MessageInput({
         </div>
       </div>
 
-      <div className="absolute right-3 bottom-3 z-20 flex items-center gap-2">
-        {props.allowAttachments && (
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="h-9 w-9 text-muted-foreground hover:text-foreground hover:bg-muted-foreground/10 rounded-xl"
-            aria-label="Attach a file"
-            onClick={async () => {
-              const files = await showFileUploadDialog()
-              addFiles(files)
-            }}
-          >
-            <Paperclip className="h-4.5 w-4.5" />
-          </Button>
-        )}
-        {isSpeechSupported && (
-          <Button
-            type="button"
-            variant="ghost"
-            className={cn("h-9 w-9 rounded-xl", isListening ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-muted-foreground/10")}
-            aria-label="Voice input"
-            size="icon"
+      {suggestions && append && suggestions.length > 0 && (
+        <div className="mt-2">
+          <PromptSuggestions label="" append={append} suggestions={suggestions} />
+        </div>
+      )}
+
+      <div className="absolute right-3 top-3 z-20 flex gap-1">
+        <TooltipProvider delayDuration={0}>
+          {props.allowAttachments && (
+            <AttachmentButton
+              onClick={async () => {
+                const files = await showFileUploadDialog()
+                addFiles(files)
+              }}
+            />
+          )}
+
+          <VoiceInputButton
+            isSupported={!!isSpeechSupported}
+            isListening={!!isListening}
             onClick={toggleListening}
-          >
-            <Mic className="h-4.5 w-4.5" />
-          </Button>
-        )}
-        {isGenerating && stop ? (
-          <Button
-            type="button"
-            size="icon"
-            className="h-9 w-9 rounded-xl bg-destructive/10 text-destructive hover:bg-destructive/20 ring-1 ring-destructive/20"
-            aria-label="Stop generating"
-            onClick={stop}
-          >
-            <Square className="h-3 w-3" fill="currentColor" />
-          </Button>
-        ) : (
-          <Button
-            type="submit"
-            size="icon"
-            className={cn(
-              "h-9 w-9 rounded-xl transition-all shadow-md active:scale-95",
-              props.value === ""
-                ? "bg-muted text-muted-foreground"
-                : "bg-gradient-to-tr from-primary to-primary/80 text-primary-foreground hover:shadow-primary/20"
-            )}
-            aria-label="Send message"
+          />
+
+          <SubmitActionButton
+            isGenerating={isGenerating}
+            stop={stop}
             disabled={props.value === "" || isGenerating}
-          >
-            <ArrowUp className="h-5 w-5" />
-          </Button>
-        )}
+          />
+        </TooltipProvider>
       </div>
 
       {props.allowAttachments && <FileUploadOverlay isDragging={isDragging} />}
@@ -329,7 +345,7 @@ function FileUploadOverlay({ isDragging }: FileUploadOverlayProps) {
           transition={{ duration: 0.2 }}
           aria-hidden
         >
-          <Paperclip className="h-4 w-4" />
+          <Paperclip />
           <span>Drop your files here to attach them.</span>
         </motion.div>
       )}
@@ -464,4 +480,124 @@ function RecordingControls({
   }
 
   return null
+}
+
+interface ActionButtonProps {
+  onClick?: () => void
+  disabled?: boolean
+  className?: string
+}
+
+function AttachmentButton({ onClick, className }: ActionButtonProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className={cn("h-8 w-8 text-muted-foreground hover:text-foreground", className)}
+          aria-label="Attach a file"
+          onClick={onClick}
+        >
+          <Paperclip className="h-4 w-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Attach file</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function VoiceInputButton({
+  isSupported,
+  isListening,
+  onClick,
+}: {
+  isSupported: boolean
+  isListening: boolean
+  onClick: () => void
+}) {
+  if (!isSupported) return null
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          aria-label={isListening ? "Stop recording" : "Voice input"}
+          size="icon"
+          onClick={onClick}
+          className={cn(
+            "h-8 w-8 transition-all duration-200",
+            isListening
+              ? "bg-red-500/10 text-red-500 hover:bg-red-500/20"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {isListening ? (
+            <span className="relative flex h-3 w-3">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex h-3 w-3 rounded-full bg-red-500"></span>
+            </span>
+          ) : (
+            <Mic className="h-4 w-4" />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        {isListening ? "Stop recording" : "Use voice input"}
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+function SubmitActionButton({
+  isGenerating,
+  stop,
+  disabled,
+}: {
+  isGenerating: boolean
+  stop?: () => void
+  disabled: boolean
+}) {
+  if (isGenerating && stop) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            aria-label="Stop generating"
+            onClick={stop}
+          >
+            <Square className="h-3 w-3 animate-pulse fill-current" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Stop generating</TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="submit"
+          size="icon"
+          className={cn(
+            "h-8 w-8 rounded-full transition-all duration-200",
+            disabled ? "opacity-50" : "bg-primary text-primary-foreground shadow-sm"
+          )}
+          aria-label="Send message"
+          disabled={disabled}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>Send message</TooltipContent>
+    </Tooltip>
+  )
 }

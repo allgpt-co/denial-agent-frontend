@@ -7,6 +7,7 @@ import type {
     StreamEvent,
     StreamInput,
     UserInput,
+    StreamEventUpdate,
 } from './types'
 
 export class AgentClientError extends Error {
@@ -169,7 +170,7 @@ export class AgentClient {
         }
     }
 
-    private parseStreamLine(line: string): ChatMessage | string | null {
+    private parseStreamLine(line: string): ChatMessage | string | StreamEventUpdate | null {
         const trimmed = line.trim()
         if (trimmed.startsWith('data: ')) {
             const data = trimmed.substring(6)
@@ -188,6 +189,8 @@ export class AgentClient {
                             type: 'ai',
                             content: `Error: ${parsed.content}`,
                         } as ChatMessage
+                    case 'update':
+                        return parsed
                     default:
                         return null
                 }
@@ -201,7 +204,7 @@ export class AgentClient {
 
     async *stream(
         input: Omit<StreamInput, 'agent'>
-    ): AsyncGenerator<ChatMessage | string, void, unknown> {
+    ): AsyncGenerator<ChatMessage | string | StreamEventUpdate, void, unknown> {
         if (this._initPromise) {
             await this._initPromise
         }
