@@ -22,6 +22,7 @@ export interface ChatMessage {
 export interface AgentInfo {
     key: string;
     description: string;
+    suggestions?: string[];
 }
 export interface ServiceMetadata {
     agents: AgentInfo[];
@@ -53,7 +54,7 @@ export interface Feedback {
     score: number;
     kwargs?: Record<string, any>;
 }
-export type StreamEventType = 'message' | 'token' | 'error';
+export type StreamEventType = 'message' | 'token' | 'error' | 'update';
 export interface StreamEventMessage {
     type: 'message';
     content: ChatMessage;
@@ -66,7 +67,12 @@ export interface StreamEventError {
     type: 'error';
     content: string;
 }
-export type StreamEvent = StreamEventMessage | StreamEventToken | StreamEventError;
+export interface StreamEventUpdate {
+    type: 'update';
+    node: string;
+    updates: Record<string, any>;
+}
+export type StreamEvent = StreamEventMessage | StreamEventToken | StreamEventError | StreamEventUpdate;
 export interface Thread {
     thread_id: string;
     title?: string;

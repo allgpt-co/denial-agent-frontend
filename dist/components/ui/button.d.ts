@@ -4,8 +4,11 @@ declare const buttonVariants: (props?: ({
     variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | null | undefined;
     size?: "default" | "sm" | "lg" | "icon" | "icon-sm" | "icon-lg" | null | undefined;
 } & import("class-variance-authority/types").ClassProp) | undefined) => string;
-declare function Button({ className, variant, size, asChild, ...props }: React.ComponentProps<"button"> & VariantProps<typeof buttonVariants> & {
+declare const Button: React.ForwardRefExoticComponent<Omit<React.ClassAttributes<HTMLButtonElement> & React.ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<(props?: ({
+    variant?: "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" | null | undefined;
+    size?: "default" | "sm" | "lg" | "icon" | "icon-sm" | "icon-lg" | null | undefined;
+} & import("class-variance-authority/types").ClassProp) | undefined) => string> & {
     asChild?: boolean;
-}): import("react/jsx-runtime").JSX.Element;
+}, "ref"> & React.RefAttributes<HTMLButtonElement>>;
 export { Button, buttonVariants };
 //# sourceMappingURL=button.d.ts.map

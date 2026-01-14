@@ -2,6 +2,7 @@
 export default {
     darkMode: ["class"],
     content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+    important: ".chat-theme",
     theme: {
         extend: {
             borderRadius: {

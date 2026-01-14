@@ -16,6 +16,14 @@ interface ChatPropsBase {
     setMessages?: (messages: any[]) => void;
     transcribeAudio?: (blob: Blob) => Promise<string>;
     placeholder?: string;
+    label?: string;
+    isListening?: boolean;
+    startListening?: () => void;
+    stopListening?: () => void;
+    isSpeechSupported?: boolean;
+    speak?: (text: string) => void;
+    stopSpeaking?: () => void;
+    isSpeaking?: boolean;
 }
 interface ChatPropsWithoutSuggestions extends ChatPropsBase {
     append?: never;
@@ -29,7 +37,7 @@ interface ChatPropsWithSuggestions extends ChatPropsBase {
     suggestions: string[];
 }
 type ChatProps = ChatPropsWithoutSuggestions | ChatPropsWithSuggestions;
-export declare function Chat({ messages, handleSubmit, input, handleInputChange, stop, isGenerating, append, suggestions, className, onRateResponse, setMessages, transcribeAudio, placeholder, }: ChatProps): import("react/jsx-runtime").JSX.Element;
+export declare function Chat({ messages, handleSubmit, input, handleInputChange, stop, isGenerating, append, suggestions, className, onRateResponse, setMessages, transcribeAudio, placeholder, label, isListening, startListening, stopListening, isSpeechSupported, speak, stopSpeaking, isSpeaking, }: ChatProps): import("react/jsx-runtime").JSX.Element;
 export declare namespace Chat {
     var displayName: string;
 }

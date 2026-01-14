@@ -1,4 +1,4 @@
-import type { ChatHistory, ChatHistoryInput, ChatMessage, Feedback, ServiceMetadata, StreamInput, UserInput } from './types';
+import type { ChatHistory, ChatHistoryInput, ChatMessage, Feedback, ServiceMetadata, StreamInput, UserInput, StreamEventUpdate } from './types';
 export declare class AgentClientError extends Error {
     constructor(message: string);
 }
@@ -28,7 +28,7 @@ export declare class AgentClient {
     updateAgent(agent: string, skipVerify?: boolean): void;
     invoke(input: Omit<UserInput, 'agent'>): Promise<ChatMessage>;
     private parseStreamLine;
-    stream(input: Omit<StreamInput, 'agent'>): AsyncGenerator<ChatMessage | string, void, unknown>;
+    stream(input: Omit<StreamInput, 'agent'>): AsyncGenerator<ChatMessage | string | StreamEventUpdate, void, unknown>;
     createFeedback(feedback: Feedback): Promise<void>;
     getHistory(input: ChatHistoryInput): Promise<ChatHistory>;
     listThreads(limit?: number, offset?: number, userId?: string | null): Promise<import('./types').Thread[]>;

@@ -4,7 +4,7 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+.chat-theme {
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -47,7 +47,8 @@
     --sidebar-ring: 0 0% 3.9%;
 }
 
-.dark {
+.dark .chat-theme,
+.chat-theme.dark {
     --background: 210 50% 5%;
     --foreground: 0 0% 98%;
     --card: 210 50% 5%;
@@ -89,204 +90,40 @@
     --sidebar-ring: 0 0% 83.1%;
 }
 
-@layer base {
-    * {
-        @apply border-border;
-    }
-
-    body {
-        @apply bg-background text-foreground antialiased;
-    }
+.chat-theme * {
+    border-color: hsl(var(--border) / 1);
 }
 
+.chat-theme {
+    border-color: hsl(var(--border) / 1);
+}
+
+
 @layer utilities {
-    .glass {
-        @apply bg-background/70 backdrop-blur-xl border-b border-border/50;
-    }
 
-    .glass-card {
-        @apply bg-card/80 backdrop-blur-lg border border-border/50 shadow-xl;
-    }
-
-    /* Hide scrollbar */
-    .no-scrollbar::-webkit-scrollbar {
-        display: none;
-    }
-
-    .no-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-    }
-
-    /* Custom scrollbar */
-    .custom-scrollbar {
+    /* Scoped custom scrollbar for the chat */
+    .chat-theme .custom-scrollbar {
         scrollbar-width: thin;
         scrollbar-color: hsl(var(--border)) hsl(var(--muted));
     }
 
-    .custom-scrollbar::-webkit-scrollbar {
+    .chat-theme .custom-scrollbar::-webkit-scrollbar {
         width: 8px;
         height: 8px;
     }
 
-    .custom-scrollbar::-webkit-scrollbar-track {
+    .chat-theme .custom-scrollbar::-webkit-scrollbar-track {
         background: hsl(var(--muted));
         border-radius: 4px;
     }
 
-    .custom-scrollbar::-webkit-scrollbar-thumb {
+    .chat-theme .custom-scrollbar::-webkit-scrollbar-thumb {
         background: hsl(var(--border));
         border-radius: 4px;
         transition: background 0.2s ease;
     }
 
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    .chat-theme .custom-scrollbar::-webkit-scrollbar-thumb:hover {
         background: hsl(var(--muted-foreground));
     }
-
-    /* Dark mode scrollbar */
-    .dark .custom-scrollbar {
-        scrollbar-color: hsl(var(--muted-foreground)) hsl(var(--muted));
-    }
-
-    .dark .custom-scrollbar::-webkit-scrollbar-track {
-        background: hsl(var(--muted));
-    }
-
-    .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: hsl(var(--muted-foreground));
-    }
-
-    .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-        background: hsl(var(--foreground));
-    }
-
-    .chat-height {
-        @apply h-[calc(100vh_-_8.125rem)] lg:h-[calc(100vh_-_5.625rem)];
-    }
-
-    .inbox-height {
-        @apply h-[calc(100vh_-_8.125rem)] lg:h-[calc(100vh_-_5.625rem)];
-    }
-
-    /* Text gradients */
-    .text-gradient-primary {
-        background: linear-gradient(to right,
-                hsl(var(--secondary-muted)),
-                hsl(var(--secondary)));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-    }
-
-    .text-gradient-primary-diagonal {
-        background: linear-gradient(135deg,
-                hsl(var(--secondary-muted)),
-                hsl(var(--secondary)));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-    }
-
-    /* Border gradient */
-    .border-gradient-primary {
-        background: linear-gradient(to right,
-                hsl(var(--secondary-muted)),
-                hsl(var(--secondary)));
-        padding: 1px;
-    }
-
-    .border-gradient-primary>* {
-        background: hsl(var(--background));
-    }
-}
-
-/* Font */
-@font-face {
-    font-family: "Satoshi";
-    src: url("/fonts/Satoshi-Regular.woff2") format("woff2");
-    font-weight: normal;
-    font-style: normal;
-    font-display: swap;
-}
-
-/* ========================= */
-/* Third-party libraries CSS */
-/* ========================= */
-
-.tableCheckbox:checked~div span {
-    @apply opacity-100;
-}
-
-.tableCheckbox:checked~div {
-    @apply bg-primary border-primary;
-}
-
-/* ApexCharts */
-.apexcharts-legend-text {
-    @apply !text-muted-foreground;
-}
-
-.apexcharts-text {
-    @apply !fill-muted-foreground;
-}
-
-.apexcharts-xcrosshairs {
-    @apply !fill-border;
-}
-
-.apexcharts-gridline {
-    @apply !stroke-border;
-}
-
-/* Pie chart stroke */
-.apexcharts-series.apexcharts-pie-series path {
-    @apply stroke-border;
-}
-
-.dark .apexcharts-series.apexcharts-pie-series path {
-    @apply !stroke-transparent;
-}
-
-/* Legend layout */
-.apexcharts-legend-series {
-    @apply !inline-flex gap-1.5;
-}
-
-/* Tooltip */
-.apexcharts-tooltip.apexcharts-theme-light {
-    @apply bg-background border-border;
-}
-
-.dark .apexcharts-tooltip.apexcharts-theme-light {
-    @apply !bg-card !border-border;
-}
-
-.apexcharts-tooltip.apexcharts-theme-light .apexcharts-tooltip-title {
-    @apply bg-muted border-border;
-}
-
-.dark .apexcharts-tooltip.apexcharts-theme-light .apexcharts-tooltip-title {
-    @apply !bg-muted !border-border;
-}
-
-/* Axis tooltips */
-.apexcharts-xaxistooltip,
-.apexcharts-yaxistooltip {
-    @apply bg-background border-border text-foreground;
-}
-
-.dark .apexcharts-xaxistooltip,
-.dark .apexcharts-yaxistooltip {
-    @apply !bg-muted !border-muted !text-muted-foreground;
-}
-
-.apexcharts-xaxistooltip-bottom:after,
-.apexcharts-xaxistooltip-bottom:before {
-    @apply border-b-border;
-}
-
-.dark .apexcharts-xaxistooltip-bottom:after,
-.dark .apexcharts-xaxistooltip-bottom:before {
-    @apply !border-b-muted;
 }

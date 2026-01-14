@@ -6,6 +6,15 @@ interface MessageInputBaseProps extends React.TextareaHTMLAttributes<HTMLTextAre
     isGenerating: boolean;
     enableInterrupt?: boolean;
     transcribeAudio?: (blob: Blob) => Promise<string>;
+    suggestions?: string[];
+    append?: (message: {
+        role: "user";
+        content: string;
+    }) => void;
+    isListening?: boolean;
+    startListening?: () => void;
+    stopListening?: () => void;
+    isSpeechSupported?: boolean;
 }
 interface MessageInputWithoutAttachmentProps extends MessageInputBaseProps {
     allowAttachments?: false;
@@ -16,7 +25,7 @@ interface MessageInputWithAttachmentsProps extends MessageInputBaseProps {
     setFiles: React.Dispatch<React.SetStateAction<File[] | null>>;
 }
 type MessageInputProps = MessageInputWithoutAttachmentProps | MessageInputWithAttachmentsProps;
-export declare function MessageInput({ placeholder, className, onKeyDown: onKeyDownProp, submitOnEnter, stop, isGenerating, enableInterrupt, transcribeAudio, ...props }: MessageInputProps): import("react/jsx-runtime").JSX.Element;
+export declare function MessageInput({ placeholder, className, onKeyDown: onKeyDownProp, submitOnEnter, stop, isGenerating, enableInterrupt, transcribeAudio, suggestions, append, isListening: externalIsListening, startListening, stopListening, isSpeechSupported: externalIsSpeechSupported, ...props }: MessageInputProps): import("react/jsx-runtime").JSX.Element;
 export declare namespace MessageInput {
     var displayName: string;
 }
