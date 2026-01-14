@@ -75,8 +75,8 @@
     --success-foreground: 0 0% 98%;
     --warning: 36 100% 50%;
     --warning-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
+    --border: 0 0% 8%;
+    --input: 0 0% 8%;
     --ring: 0 0% 83.1%;
 
     /* Sidebar - Dark */
@@ -86,44 +86,6 @@
     --sidebar-primary-foreground: 0 0% 9%;
     --sidebar-accent: 210 100% 13%;
     --sidebar-accent-foreground: 189 68% 85%;
-    --sidebar-border: 0 0% 14.9%;
+    --sidebar-border: 0 0% 8%;
     --sidebar-ring: 0 0% 83.1%;
-}
-
-.chat-theme * {
-    border-color: hsl(var(--border) / 1);
-}
-
-.chat-theme {
-    border-color: hsl(var(--border) / 1);
-}
-
-
-@layer utilities {
-
-    /* Scoped custom scrollbar for the chat */
-    .chat-theme .custom-scrollbar {
-        scrollbar-width: thin;
-        scrollbar-color: hsl(var(--border)) hsl(var(--muted));
-    }
-
-    .chat-theme .custom-scrollbar::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-
-    .chat-theme .custom-scrollbar::-webkit-scrollbar-track {
-        background: hsl(var(--muted));
-        border-radius: 4px;
-    }
-
-    .chat-theme .custom-scrollbar::-webkit-scrollbar-thumb {
-        background: hsl(var(--border));
-        border-radius: 4px;
-        transition: background 0.2s ease;
-    }
-
-    .chat-theme .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-        background: hsl(var(--muted-foreground));
-    }
 }

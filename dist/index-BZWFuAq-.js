@@ -20372,7 +20372,7 @@ function Xd({ children: e }) {
 }
 const tg = $.memo(
   async ({ children: e, language: t, ...n }) => {
-    const { codeToTokens: r, bundledLanguages: i } = await import("./index-v2sHLPyu.js");
+    const { codeToTokens: r, bundledLanguages: i } = await import("./index-xeNzkHNp.js");
     if (!(t in i))
       return /* @__PURE__ */ g("pre", { ...n, children: e });
     const { tokens: o } = await r(e, {
@@ -24661,7 +24661,10 @@ function eO({
     if (I)
       try {
         j(!0);
-        const ke = (await I.getHistory({ thread_id: K })).messages.map((ze) => ({
+        const ke = (await I.getHistory({
+          thread_id: K,
+          user_id: n || void 0
+        })).messages.map((ze) => ({
           id: ze.id || crypto.randomUUID(),
           role: ze.type === "human" ? "user" : "assistant",
           content: ze.content,

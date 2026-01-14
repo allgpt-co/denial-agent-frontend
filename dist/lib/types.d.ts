@@ -44,6 +44,7 @@ export interface StreamInput extends UserInput {
 }
 export interface ChatHistoryInput {
     thread_id?: string | null;
+    user_id?: string | null;
 }
 export interface ChatHistory {
     messages: ChatMessage[];

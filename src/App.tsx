@@ -14,7 +14,7 @@ function App() {
             <div className="h-screen bg-background flex w-full flex-col">
                 <main className="flex-1 overflow-hidden">
                     <AgentChat
-                        baseUrl="https://twilio-hook.quickintell.com/agent"
+                        baseUrl="http://localhost:8080/agent"
                         agent="rcm-agent"
                         model="gpt-4o"
                         enableStreaming={true}

@@ -172,7 +172,10 @@ export function AgentChat({
         if (!client) return
         try {
             setIsGenerating(true)
-            const history = await client.getHistory({ thread_id: threadId })
+            const history = await client.getHistory({ 
+                thread_id: threadId,
+                user_id: userId || undefined
+            })
             const convertedMessages: Message[] = history.messages.map((msg) => ({
                 id: msg.id || crypto.randomUUID(),
                 role: msg.type === 'human' ? 'user' : 'assistant',
