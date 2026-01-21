@@ -296,7 +296,23 @@ export function MessageInput({
             <AttachmentButton
               onClick={async () => {
                 const files = await showFileUploadDialog()
-                addFiles(files)
+                if (files && files.length > 0) {
+                  // Validate files before adding
+                  try {
+                    const { validateFiles } = await import('../../lib/constants')
+                    const validation = validateFiles(files)
+                    if (!validation.valid) {
+                      // Show error toast or alert
+                      alert(validation.error || 'File validation failed')
+                      return
+                    }
+                    addFiles(files)
+                  } catch (error) {
+                    console.error('Error validating files:', error)
+                    // Still add files if validation import fails
+                    addFiles(files)
+                  }
+                }
               }}
             />
           )}

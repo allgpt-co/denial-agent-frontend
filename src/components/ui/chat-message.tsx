@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { motion } from "framer-motion"
 import { Ban, ChevronRight, Code2, Loader2, Terminal, Sparkles, Bot } from "lucide-react"
@@ -172,14 +172,35 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     toolInvocations,
     parts,
 }) => {
-    const files = useMemo(() => {
-        return experimental_attachments?.map((attachment) => {
-            const dataArray = dataUrlToUint8Array(attachment.url)
-            const file = new File([dataArray], attachment.name ?? "Unknown", {
-                type: attachment.contentType,
-            })
-            return file
-        })
+    const [files, setFiles] = useState<File[]>([])
+    
+    useEffect(() => {
+        if (!experimental_attachments || experimental_attachments.length === 0) {
+            setFiles([])
+            return
+        }
+        
+        const loadFiles = async () => {
+            const loadedFiles = await Promise.all(
+                experimental_attachments.map(async (attachment) => {
+                    try {
+                        const dataArray = await dataUrlToUint8Array(attachment.url)
+                        return new File([dataArray], attachment.name ?? "Unknown", {
+                            type: attachment.contentType,
+                        })
+                    } catch (error) {
+                        console.error('Error loading file:', error)
+                        // Return a placeholder file if loading fails
+                        return new File([], attachment.name ?? "Unknown", {
+                            type: attachment.contentType,
+                        })
+                    }
+                })
+            )
+            setFiles(loadedFiles)
+        }
+        
+        loadFiles()
     }, [experimental_attachments])
 
     const isUser = role === "user"
@@ -234,9 +255,12 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 "flex flex-col gap-1.5",
                 isUser ? "items-end max-w-[70%]" : "items-start max-w-full"
             )}>
-                {/* User Files */}
-                {isUser && files && files.length > 0 && (
-                    <div className="mb-1 flex flex-wrap gap-2 justify-end">
+                {/* Files - Show for all message types */}
+                {files && files.length > 0 && (
+                    <div className={cn(
+                        "mb-1 flex flex-wrap gap-2",
+                        isUser ? "justify-end" : "justify-start"
+                    )}>
                         {files.map((file, index) => <FilePreview file={file} key={index} />)}
                     </div>
                 )}
@@ -322,15 +346,33 @@ const ExpandableMarkdown = ({
     )
 }
 
-function dataUrlToUint8Array(data: string) {
-    const base64 = data.split(",")[1]
-    const binString = atob(base64)
-    const len = binString.length
-    const bytes = new Uint8Array(len)
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binString.charCodeAt(i)
+async function dataUrlToUint8Array(data: string): Promise<Uint8Array> {
+    // Handle blob URLs by fetching and converting to data URL
+    if (data.startsWith('blob:')) {
+        const response = await fetch(data)
+        const blob = await response.blob()
+        return new Uint8Array(await blob.arrayBuffer())
     }
-    return bytes
+    
+    // Handle data URLs
+    if (data.startsWith('data:')) {
+        const base64 = data.split(",")[1]
+        if (!base64) {
+            throw new Error('Invalid data URL format')
+        }
+        const binString = atob(base64)
+        const len = binString.length
+        const bytes = new Uint8Array(len)
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binString.charCodeAt(i)
+        }
+        return bytes
+    }
+    
+    // If it's neither, try to fetch it as a URL
+    const response = await fetch(data)
+    const blob = await response.blob()
+    return new Uint8Array(await blob.arrayBuffer())
 }
 
 const ReasoningBlock = ({ part }: { part: ReasoningPart }) => {

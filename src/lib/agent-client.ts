@@ -3,6 +3,7 @@ import type {
     ChatHistoryInput,
     ChatMessage,
     Feedback,
+    FileAttachment,
     ServiceMetadata,
     StreamEvent,
     StreamInput,
@@ -369,6 +370,94 @@ export class AgentClient {
         } catch (error) {
             if (error instanceof Error) {
                 throw new AgentClientError(`Error listing threads: ${error.message}`)
+            }
+            throw error
+        }
+    }
+
+    async uploadFile(file: File): Promise<FileAttachment> {
+        try {
+            const formData = new FormData()
+            formData.append('file', file)
+
+            const headers: HeadersInit = {}
+            if (this.authSecret) {
+                headers['Authorization'] = `Bearer ${this.authSecret}`
+            }
+            // Don't set Content-Type for FormData - browser will set it with boundary
+
+            const controller = new AbortController()
+            const timeoutId = this.timeout
+                ? setTimeout(() => controller.abort(), this.timeout)
+                : undefined
+
+            const response = await fetch(`${this.baseUrl}/upload`, {
+                method: 'POST',
+                headers: headers,
+                body: formData,
+                signal: controller.signal,
+            })
+
+            if (timeoutId) clearTimeout(timeoutId)
+
+            if (!response.ok) {
+                throw new AgentClientError(`HTTP error! status: ${response.status}`)
+            }
+
+            return await response.json()
+        } catch (error) {
+            if (error instanceof Error) {
+                throw new AgentClientError(`Error uploading file: ${error.message}`)
+            }
+            throw error
+        }
+    }
+
+    async uploadFiles(files: File[]): Promise<FileAttachment[]> {
+        if (files.length === 0) {
+            return []
+        }
+        
+        // Use the multiple upload endpoint for better performance
+        if (files.length === 1) {
+            // For single file, use the single upload endpoint
+            return [await this.uploadFile(files[0])]
+        }
+        
+        try {
+            const formData = new FormData()
+            files.forEach((file) => {
+                formData.append('files', file)
+            })
+
+            const headers: HeadersInit = {}
+            if (this.authSecret) {
+                headers['Authorization'] = `Bearer ${this.authSecret}`
+            }
+            // Don't set Content-Type for FormData - browser will set it with boundary
+
+            const controller = new AbortController()
+            const timeoutId = this.timeout
+                ? setTimeout(() => controller.abort(), this.timeout)
+                : undefined
+
+            const response = await fetch(`${this.baseUrl}/upload-multiple`, {
+                method: 'POST',
+                headers: headers,
+                body: formData,
+                signal: controller.signal,
+            })
+
+            if (timeoutId) clearTimeout(timeoutId)
+
+            if (!response.ok) {
+                throw new AgentClientError(`HTTP error! status: ${response.status}`)
+            }
+
+            return await response.json()
+        } catch (error) {
+            if (error instanceof Error) {
+                throw new AgentClientError(`Error uploading files: ${error.message}`)
             }
             throw error
         }

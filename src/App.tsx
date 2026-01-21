@@ -17,11 +17,10 @@ function App() {
                         baseUrl="http://localhost:8080/agent"
                         agent="rcm-agent"
                         model="gpt-4o"
-                        enableStreaming={true}
+                        enableStreaming={false}
                         showSettings={true}
                         showHeader={true}
                         suggestions={SUGGESTIONS}
-                        userId={"3feb4c19-3f80-4b2b-ac22-4c045acc36fc"}
                         onError={(error) => {
                             console.error('Agent error:', error)
                         }}

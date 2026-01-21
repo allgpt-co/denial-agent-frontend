@@ -153,8 +153,15 @@ export function AgentChat({
             } catch (e) {
                 console.warn("Could not update agent yet", e)
             }
+
+            // Update suggestions when agent switches (only if no messages yet)
+            if (messages.length === 0) {
+                const agentInfo = availableAgents.find(a => a.key === currentAgent)
+                const newSugs = agentInfo?.suggestions?.length ? agentInfo.suggestions : (suggestions?.length ? suggestions : [])
+                setFollowupSuggestions(newSugs)
+            }
         }
-    }, [currentAgent, client])
+    }, [currentAgent, client, availableAgents, messages.length, suggestions])
 
     // Fetch History Threads
     const fetchHistory = useCallback(async () => {
@@ -172,17 +179,61 @@ export function AgentChat({
         if (!client) return
         try {
             setIsGenerating(true)
-            const history = await client.getHistory({ 
+            const history = await client.getHistory({
                 thread_id: threadId,
                 user_id: userId || undefined
             })
-            const convertedMessages: Message[] = history.messages.map((msg) => ({
-                id: msg.id || crypto.randomUUID(),
-                role: msg.type === 'human' ? 'user' : 'assistant',
-                content: msg.content,
-                createdAt: new Date(), // We assume current time if timestamp missing
-                // Map other fields if necessary
-            }))
+            const convertedMessages: Message[] = await Promise.all(
+                history.messages.map(async (msg) => {
+                    const message: Message = {
+                        id: msg.id || crypto.randomUUID(),
+                        role: msg.type === 'human' ? 'user' : 'assistant',
+                        content: msg.content,
+                        createdAt: new Date(), // We assume current time if timestamp missing
+                    }
+
+                    // Restore file attachments from custom_data if available
+                    if (msg.custom_data?.attachments && Array.isArray(msg.custom_data.attachments)) {
+                        try {
+                            const attachments = await Promise.all(
+                                msg.custom_data.attachments.map(async (att: any) => {
+                                    // Fetch file from backend
+                                    // baseUrl already includes /agent, so just append /files/
+                                    const fileUrl = `${baseUrl}/files/${att.file_id}`
+                                    const response = await fetch(fileUrl)
+                                    if (!response.ok) {
+                                        console.warn(`Failed to load file ${att.file_id}`)
+                                        return null
+                                    }
+                                    const blob = await response.blob()
+                                    const dataUrl = await new Promise<string>((resolve, reject) => {
+                                        const reader = new FileReader()
+                                        reader.onload = () => resolve(reader.result as string)
+                                        reader.onerror = reject
+                                        reader.readAsDataURL(blob)
+                                    })
+
+                                    return {
+                                        name: att.filename,
+                                        contentType: att.content_type,
+                                        url: dataUrl,
+                                    }
+                                })
+                            )
+
+                            // Filter out any failed loads
+                            const validAttachments = attachments.filter((att): att is NonNullable<typeof att> => att !== null)
+                            if (validAttachments.length > 0) {
+                                message.experimental_attachments = validAttachments
+                            }
+                        } catch (error) {
+                            console.error('Error loading file attachments from history:', error)
+                        }
+                    }
+
+                    return message
+                })
+            )
             setMessages(convertedMessages)
             setCurrentThreadId(threadId)
             setIsHistoryOpen(false)
@@ -209,14 +260,40 @@ export function AgentChat({
     }
 
     // Unified Send Message Logic
-    const handleSendMessage = async (content: string) => {
+    const handleSendMessage = async (content: string, files?: FileList | File[]) => {
         if (!content.trim() || !client) return
+
+        // Convert files to data URLs for display
+        const fileAttachments = files ? await Promise.all(
+            Array.from(files).map(async (file) => {
+                return new Promise<{ name: string; contentType: string; url: string }>((resolve) => {
+                    const reader = new FileReader()
+                    reader.onload = () => {
+                        resolve({
+                            name: file.name,
+                            contentType: file.type,
+                            url: reader.result as string, // This will be a data URL
+                        })
+                    }
+                    reader.onerror = () => {
+                        // Fallback to blob URL if conversion fails
+                        resolve({
+                            name: file.name,
+                            contentType: file.type,
+                            url: URL.createObjectURL(file),
+                        })
+                    }
+                    reader.readAsDataURL(file)
+                })
+            })
+        ) : undefined
 
         const userMsg: Message = {
             id: crypto.randomUUID(),
             role: 'user',
             content,
             createdAt: new Date(),
+            experimental_attachments: fileAttachments,
         }
 
         setMessages((prev) => [...prev, userMsg])
@@ -230,10 +307,46 @@ export function AgentChat({
         const threadConfig = { thread_id: tId, user_id: userId }
 
         try {
+            // Upload files if provided
+            let attachments: import('@/lib/types').FileAttachment[] = []
+            if (files && files.length > 0) {
+                try {
+                    const fileArray = Array.from(files)
+                    // Validate files before uploading
+                    const { validateFiles } = await import('../lib/constants')
+                    const validation = validateFiles(fileArray)
+                    if (!validation.valid) {
+                        setMessages((prev) => [...prev, {
+                            id: crypto.randomUUID(),
+                            role: 'assistant',
+                            content: validation.error || 'File validation failed. Please try again.',
+                            createdAt: new Date()
+                        }])
+                        setIsGenerating(false)
+                        return
+                    }
+                    attachments = await client.uploadFiles(fileArray)
+                } catch (uploadError) {
+                    console.error('Error uploading files:', uploadError)
+                    const errorMessage = uploadError instanceof Error
+                        ? uploadError.message
+                        : 'Error uploading files. Please try again.'
+                    setMessages((prev) => [...prev, {
+                        id: crypto.randomUUID(),
+                        role: 'assistant',
+                        content: errorMessage,
+                        createdAt: new Date()
+                    }])
+                    setIsGenerating(false)
+                    return
+                }
+            }
+
             if (enableStreaming) {
                 const stream = client.stream({
                     message: content,
                     model: currentModel || undefined,
+                    attachments: attachments.length > 0 ? attachments : undefined,
                     ...threadConfig
                 })
 
@@ -295,6 +408,7 @@ export function AgentChat({
                 const response = await client.invoke({
                     message: content,
                     model: currentModel || undefined,
+                    attachments: attachments.length > 0 ? attachments : undefined,
                     ...threadConfig
                 })
 
@@ -336,9 +450,13 @@ export function AgentChat({
     }, [])
 
     // Handle Send Message
-    const handleSubmit = async (event?: { preventDefault?: () => void }) => {
+    const handleSubmit = async (
+        event?: { preventDefault?: () => void },
+        options?: { experimental_attachments?: FileList }
+    ) => {
         event?.preventDefault?.()
-        handleSendMessage(input)
+        const files = options?.experimental_attachments
+        handleSendMessage(input, files ? Array.from(files) : undefined)
     }
 
     // Handle Input Change
