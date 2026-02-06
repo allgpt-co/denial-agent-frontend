@@ -14,10 +14,10 @@ function App() {
             <div className="h-screen bg-background flex w-full flex-col">
                 <main className="flex-1 overflow-hidden">
                     <AgentChat
-                        baseUrl="http://localhost:8080/agent"
-                        agent="rcm-agent"
+                        baseUrl="https://denial.quickintell.com/agent"
+                        agent="ehr-agent"
                         model="gpt-4o"
-                        enableStreaming={false}
+                        enableStreaming={true}
                         showSettings={true}
                         showHeader={true}
                         suggestions={SUGGESTIONS}
