@@ -144,6 +144,9 @@ export function AgentChat({
 
         initClient()
     }, [baseUrl]) // Only re-init if baseUrl changes
+    console.log('Loading thread', threadId)
+    console.log('User ID', userId)
+    console.log('Version 1.0')
 
     // Update Client when Agent changes
     useEffect(() => {
