@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import type { Thread, ChatMessage as AgentChatMessage, StreamEventUpdate } from '@/lib/types'
 import { ChatHeader } from './chat/ChatHeader'
 import { extractSuggestions } from '@/lib/chat-utils'
+import { validateFiles } from '@/lib/constants'
 
 export interface AgentChatProps {
     baseUrl: string
@@ -94,7 +95,68 @@ export function AgentChat({
         setFollowupSuggestions(initialSugs)
     }, [client?.info?.agents, suggestions])
 
-    // Load thread history when threadId prop changes
+    // Load a specific thread (stable callback so it works when used as module)
+    const loadThread = useCallback(async (tid: string) => {
+        if (!client) return
+        try {
+            setIsGenerating(true)
+            const history = await client.getHistory({
+                thread_id: tid,
+                user_id: userId || undefined
+            })
+            const convertedMessages: Message[] = await Promise.all(
+                history.messages.map(async (msg) => {
+                    const message: Message = {
+                        id: msg.id || crypto.randomUUID(),
+                        role: msg.type === 'human' ? 'user' : 'assistant',
+                        content: msg.content,
+                        createdAt: new Date(),
+                    }
+
+                    if (msg.custom_data?.attachments && Array.isArray(msg.custom_data.attachments)) {
+                        try {
+                            const attachments = await Promise.all(
+                                msg.custom_data.attachments.map(async (att: any) => {
+                                    const fileUrl = `${baseUrl}/files/${att.file_id}`
+                                    const response = await fetch(fileUrl)
+                                    if (!response.ok) return null
+                                    const blob = await response.blob()
+                                    const dataUrl = await new Promise<string>((resolve, reject) => {
+                                        const reader = new FileReader()
+                                        reader.onload = () => resolve(reader.result as string)
+                                        reader.onerror = reject
+                                        reader.readAsDataURL(blob)
+                                    })
+                                    return {
+                                        name: att.filename,
+                                        contentType: att.content_type,
+                                        url: dataUrl,
+                                    }
+                                })
+                            )
+                            const validAttachments = attachments.filter((att): att is NonNullable<typeof att> => att !== null)
+                            if (validAttachments.length > 0) {
+                                message.experimental_attachments = validAttachments
+                            }
+                        } catch {
+                            // Ignore attachment restore errors
+                        }
+                    }
+
+                    return message
+                })
+            )
+            setMessages(convertedMessages)
+            setCurrentThreadId(tid)
+            setIsHistoryOpen(false)
+        } catch (err) {
+            if (err instanceof Error) onError?.(err)
+        } finally {
+            setIsGenerating(false)
+        }
+    }, [client, userId, baseUrl, onError])
+
+    // Load thread history when threadId prop or client changes (works when imported as module)
     useEffect(() => {
         if (threadId) {
             setCurrentThreadId(threadId)
@@ -102,13 +164,12 @@ export function AgentChat({
                 loadThread(threadId)
             }
         }
-    }, [threadId, client])
+    }, [threadId, client, loadThread])
 
     // Initialize Client
     useEffect(() => {
         const initClient = async () => {
             try {
-                // If the agent is 'default', let the client pick the backend default
                 const agentToUse = currentAgent === 'default' ? null : currentAgent
 
                 const newClient = new AgentClient({
@@ -124,7 +185,6 @@ export function AgentChat({
                     setAvailableAgents(newClient.info.agents)
                     setAvailableModels(newClient.info.models)
 
-                    // Sync currentAgent with whatever the client decided (e.g. if 'default' was used)
                     if (newClient.agent) {
                         setCurrentAgent(newClient.agent)
                     }
@@ -137,16 +197,63 @@ export function AgentChat({
                         createWelcomeMessage(newClient.agent)
                     }
                 }
+
+                // When used as module, threadId may be set before client was ready; load now
+                if (threadId) {
+                    setCurrentThreadId(threadId)
+                    setIsGenerating(true)
+                    try {
+                        const history = await newClient.getHistory({
+                            thread_id: threadId,
+                            user_id: userId || undefined
+                        })
+                        const convertedMessages: Message[] = await Promise.all(
+                            history.messages.map(async (msg) => {
+                                const message: Message = {
+                                    id: msg.id || crypto.randomUUID(),
+                                    role: msg.type === 'human' ? 'user' : 'assistant',
+                                    content: msg.content,
+                                    createdAt: new Date(),
+                                }
+                                if (msg.custom_data?.attachments && Array.isArray(msg.custom_data.attachments)) {
+                                    try {
+                                        const attachments = await Promise.all(
+                                            msg.custom_data.attachments.map(async (att: any) => {
+                                                const fileUrl = `${baseUrl}/files/${att.file_id}`
+                                                const response = await fetch(fileUrl)
+                                                if (!response.ok) return null
+                                                const blob = await response.blob()
+                                                const dataUrl = await new Promise<string>((resolve, reject) => {
+                                                    const reader = new FileReader()
+                                                    reader.onload = () => resolve(reader.result as string)
+                                                    reader.onerror = reject
+                                                    reader.readAsDataURL(blob)
+                                                })
+                                                return { name: att.filename, contentType: att.content_type, url: dataUrl }
+                                            })
+                                        )
+                                        const valid = attachments.filter((att): att is NonNullable<typeof att> => att !== null)
+                                        if (valid.length > 0) message.experimental_attachments = valid
+                                    } catch {
+                                        /* ignore */
+                                    }
+                                }
+                                return message
+                            })
+                        )
+                        setMessages(convertedMessages)
+                        setIsHistoryOpen(false)
+                    } finally {
+                        setIsGenerating(false)
+                    }
+                }
             } catch (err) {
                 if (err instanceof Error) onError?.(err)
             }
         }
 
         initClient()
-    }, [baseUrl]) // Only re-init if baseUrl changes
-    console.log('Loading thread', threadId)
-    console.log('User ID', userId)
-    console.log('Version 1.0')
+    }, [baseUrl])
 
     // Update Client when Agent changes
     useEffect(() => {
@@ -177,76 +284,6 @@ export function AgentChat({
         }
     }, [client, userId])
 
-    // Load a specific thread
-    const loadThread = async (threadId: string) => {
-        if (!client) return
-        try {
-            setIsGenerating(true)
-            const history = await client.getHistory({
-                thread_id: threadId,
-                user_id: userId || undefined
-            })
-            const convertedMessages: Message[] = await Promise.all(
-                history.messages.map(async (msg) => {
-                    const message: Message = {
-                        id: msg.id || crypto.randomUUID(),
-                        role: msg.type === 'human' ? 'user' : 'assistant',
-                        content: msg.content,
-                        createdAt: new Date(), // We assume current time if timestamp missing
-                    }
-
-                    // Restore file attachments from custom_data if available
-                    if (msg.custom_data?.attachments && Array.isArray(msg.custom_data.attachments)) {
-                        try {
-                            const attachments = await Promise.all(
-                                msg.custom_data.attachments.map(async (att: any) => {
-                                    // Fetch file from backend
-                                    // baseUrl already includes /agent, so just append /files/
-                                    const fileUrl = `${baseUrl}/files/${att.file_id}`
-                                    const response = await fetch(fileUrl)
-                                    if (!response.ok) {
-                                        console.warn(`Failed to load file ${att.file_id}`)
-                                        return null
-                                    }
-                                    const blob = await response.blob()
-                                    const dataUrl = await new Promise<string>((resolve, reject) => {
-                                        const reader = new FileReader()
-                                        reader.onload = () => resolve(reader.result as string)
-                                        reader.onerror = reject
-                                        reader.readAsDataURL(blob)
-                                    })
-
-                                    return {
-                                        name: att.filename,
-                                        contentType: att.content_type,
-                                        url: dataUrl,
-                                    }
-                                })
-                            )
-
-                            // Filter out any failed loads
-                            const validAttachments = attachments.filter((att): att is NonNullable<typeof att> => att !== null)
-                            if (validAttachments.length > 0) {
-                                message.experimental_attachments = validAttachments
-                            }
-                        } catch (error) {
-                            console.error('Error loading file attachments from history:', error)
-                        }
-                    }
-
-                    return message
-                })
-            )
-            setMessages(convertedMessages)
-            setCurrentThreadId(threadId)
-            setIsHistoryOpen(false)
-        } catch (err) {
-            if (err instanceof Error) onError?.(err)
-        } finally {
-            setIsGenerating(false)
-        }
-    }
-
     const handleNewChat = () => {
         setIsRefreshing(true)
         setTimeout(() => setIsRefreshing(false), 1000)
@@ -264,7 +301,17 @@ export function AgentChat({
 
     // Unified Send Message Logic
     const handleSendMessage = async (content: string, files?: FileList | File[]) => {
-        if (!content.trim() || !client) return
+        if (!content.trim() && (!files || files.length === 0)) return
+
+        if (!client) {
+            setMessages((prev) => [...prev, {
+                id: crypto.randomUUID(),
+                role: 'assistant',
+                content: 'Connecting to agent... Please try again in a moment.',
+                createdAt: new Date()
+            }])
+            return
+        }
 
         // Convert files to data URLs for display
         const fileAttachments = files ? await Promise.all(
@@ -316,7 +363,6 @@ export function AgentChat({
                 try {
                     const fileArray = Array.from(files)
                     // Validate files before uploading
-                    const { validateFiles } = await import('../lib/constants')
                     const validation = validateFiles(fileArray)
                     if (!validation.valid) {
                         setMessages((prev) => [...prev, {

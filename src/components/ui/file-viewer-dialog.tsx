@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { Download, FileIcon, X } from "lucide-react"
+import { Download, FileIcon } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -7,7 +7,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
 
 interface FileViewerDialogProps {
   file: File | null

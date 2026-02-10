@@ -1,4 +1,4 @@
-import type { ChatHistory, ChatHistoryInput, ChatMessage, Feedback, ServiceMetadata, StreamInput, UserInput, StreamEventUpdate } from './types';
+import type { ChatHistory, ChatHistoryInput, ChatMessage, Feedback, FileAttachment, ServiceMetadata, StreamInput, UserInput, StreamEventUpdate } from './types';
 export declare class AgentClientError extends Error {
     constructor(message: string);
 }
@@ -32,5 +32,7 @@ export declare class AgentClient {
     createFeedback(feedback: Feedback): Promise<void>;
     getHistory(input: ChatHistoryInput): Promise<ChatHistory>;
     listThreads(limit?: number, offset?: number, userId?: string | null): Promise<import('./types').Thread[]>;
+    uploadFile(file: File): Promise<FileAttachment>;
+    uploadFiles(files: File[]): Promise<FileAttachment[]>;
 }
 //# sourceMappingURL=agent-client.d.ts.map

@@ -16,6 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { validateFiles } from "@/lib/constants"
 
 interface MessageInputBaseProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
@@ -299,7 +300,6 @@ export function MessageInput({
                 if (files && files.length > 0) {
                   // Validate files before adding
                   try {
-                    const { validateFiles } = await import('../../lib/constants')
                     const validation = validateFiles(files)
                     if (!validation.valid) {
                       // Show error toast or alert
@@ -369,25 +369,42 @@ function FileUploadOverlay({ isDragging }: FileUploadOverlayProps) {
   )
 }
 
-function showFileUploadDialog() {
+function showFileUploadDialog(): Promise<File[] | null> {
   const input = document.createElement("input")
-
   input.type = "file"
   input.multiple = true
   input.accept = "*/*"
-  input.click()
+  input.style.display = "none"
 
   return new Promise<File[] | null>((resolve) => {
+    let resolved = false
+    const finish = (value: File[] | null) => {
+      if (resolved) return
+      resolved = true
+      cleanup()
+      resolve(value)
+    }
+
+    const cleanup = () => {
+      window.removeEventListener("focus", onWindowFocus)
+      clearTimeout(focusTimeoutId)
+    }
+
+    let focusTimeoutId: ReturnType<typeof setTimeout>
+
+    const onWindowFocus = () => {
+      // When dialog closes (cancel or after select), window gets focus.
+      // Delay so onchange can run first if user selected files.
+      focusTimeoutId = setTimeout(() => finish(null), 100)
+    }
+
     input.onchange = (e) => {
       const files = (e.currentTarget as HTMLInputElement).files
-
-      if (files) {
-        resolve(Array.from(files))
-        return
-      }
-
-      resolve(null)
+      finish(files && files.length ? Array.from(files) : null)
     }
+
+    window.addEventListener("focus", onWindowFocus)
+    input.click()
   })
 }
 

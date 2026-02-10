@@ -34,10 +34,17 @@ export interface ThreadConfig {
     thread_id?: string | null;
     user_id?: string | null;
 }
+export interface FileAttachment {
+    file_id: string;
+    filename: string;
+    content_type: string;
+    size: number;
+}
 export interface UserInput extends ThreadConfig {
     message: string;
     model?: string | null;
     agent_config?: Record<string, any>;
+    attachments?: FileAttachment[];
 }
 export interface StreamInput extends UserInput {
     stream_tokens?: boolean;

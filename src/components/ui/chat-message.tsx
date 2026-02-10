@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useEffect, useState } from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { motion } from "framer-motion"
 import { Ban, ChevronRight, Code2, Loader2, Terminal, Sparkles, Bot } from "lucide-react"
