@@ -1,1 +1,0 @@
-{"version":3,"file":"use-audio-recording.d.ts","sourceRoot":"","sources":["../../src/hooks/use-audio-recording.ts"],"names":[],"mappings":"AAIA,UAAU,wBAAwB;IAChC,eAAe,CAAC,EAAE,CAAC,IAAI,EAAE,IAAI,KAAK,OAAO,CAAC,MAAM,CAAC,CAAA;IACjD,uBAAuB,CAAC,EAAE,CAAC,IAAI,EAAE,MAAM,KAAK,IAAI,CAAA;CACjD;AAED,wBAAgB,iBAAiB,CAAC,EAChC,eAAe,EACf,uBAAuB,GACxB,EAAE,wBAAwB;;;;;;;;EAgF1B"}

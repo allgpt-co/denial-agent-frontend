@@ -1,4 +1,4 @@
-import React, { Suspense } from "react"
+import React, { Suspense, useEffect, useRef, useState } from "react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -25,54 +25,71 @@ interface HighlightedPreProps extends React.HTMLAttributes<HTMLPreElement> {
     language: string
 }
 
-const HighlightedPre = React.memo(
-    (async ({ children, language, ...props }: HighlightedPreProps) => {
-        const { codeToTokens, bundledLanguages } = await import("shiki")
+function HighlightedPreInner({ children, language, ...props }: HighlightedPreProps) {
+    const [content, setContent] = useState<React.ReactNode>(null)
+    const propsRef = useRef(props)
+    propsRef.current = props
 
-        if (!(language in bundledLanguages)) {
-            return <pre {...props}>{children}</pre>
-        }
-
-        const { tokens } = await codeToTokens(children, {
-            lang: language as keyof typeof bundledLanguages,
-            defaultColor: false,
-            themes: {
-                light: "github-light",
-                dark: "github-dark",
-            },
+    useEffect(() => {
+        setContent(null)
+        let cancelled = false
+        const currentProps = propsRef.current
+        import("shiki").then(({ codeToTokens, bundledLanguages }) => {
+            if (cancelled) return
+            if (!(language in bundledLanguages)) {
+                setContent(<pre {...currentProps}>{children}</pre>)
+                return
+            }
+            codeToTokens(children, {
+                lang: language as keyof typeof bundledLanguages,
+                defaultColor: false,
+                themes: {
+                    light: "github-light",
+                    dark: "github-dark",
+                },
+            }).then(({ tokens }) => {
+                if (cancelled) return
+                const p = propsRef.current
+                setContent(
+                    <pre {...p}>
+                        <code>
+                            {tokens.map((line, lineIndex) => (
+                                <React.Fragment key={lineIndex}>
+                                    <span>
+                                        {line.map((token, tokenIndex) => {
+                                            const style =
+                                                typeof token.htmlStyle === "string"
+                                                    ? undefined
+                                                    : token.htmlStyle
+                                            return (
+                                                <span
+                                                    key={tokenIndex}
+                                                    className="text-shiki-light bg-shiki-light-bg dark:text-shiki-dark dark:bg-shiki-dark-bg"
+                                                    style={style}
+                                                >
+                                                    {token.content}
+                                                </span>
+                                            )
+                                        })}
+                                    </span>
+                                    {lineIndex !== tokens.length - 1 && "\n"}
+                                </React.Fragment>
+                            ))}
+                        </code>
+                    </pre>
+                )
+            })
         })
+        return () => {
+            cancelled = true
+        }
+    }, [children, language])
 
-        return (
-            <pre {...props}>
-                <code>
-                    {tokens.map((line, lineIndex) => (
-                        <>
-                            <span key={lineIndex}>
-                                {line.map((token, tokenIndex) => {
-                                    const style =
-                                        typeof token.htmlStyle === "string"
-                                            ? undefined
-                                            : token.htmlStyle
+    if (content !== null) return content
+    return <pre {...props}>{children}</pre>
+}
 
-                                    return (
-                                        <span
-                                            key={tokenIndex}
-                                            className="text-shiki-light bg-shiki-light-bg dark:text-shiki-dark dark:bg-shiki-dark-bg"
-                                            style={style}
-                                        >
-                                            {token.content}
-                                        </span>
-                                    )
-                                })}
-                            </span>
-                            {lineIndex !== tokens.length - 1 && "\n"}
-                        </>
-                    ))}
-                </code>
-            </pre>
-        )
-    }) as any
-) as any
+const HighlightedPre = React.memo(HighlightedPreInner)
 HighlightedPre.displayName = "HighlightedCode"
 
 interface CodeBlockProps extends React.HTMLAttributes<HTMLPreElement> {

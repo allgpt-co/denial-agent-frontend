@@ -1,1 +1,0 @@
-{"version":3,"file":"use-copy-to-clipboard.d.ts","sourceRoot":"","sources":["../../src/hooks/use-copy-to-clipboard.ts"],"names":[],"mappings":"AAGA,KAAK,uBAAuB,GAAG;IAC7B,IAAI,EAAE,MAAM,CAAA;IACZ,WAAW,CAAC,EAAE,MAAM,CAAA;CACrB,CAAA;AAED,wBAAgB,kBAAkB,CAAC,EACjC,IAAI,EACJ,WAAoC,GACrC,EAAE,uBAAuB;;;EAwBzB"}

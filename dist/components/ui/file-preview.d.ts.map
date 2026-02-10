@@ -1,1 +1,0 @@
-{"version":3,"file":"file-preview.d.ts","sourceRoot":"","sources":["../../../src/components/ui/file-preview.tsx"],"names":[],"mappings":"AAAA,OAAO,KAA8B,MAAM,OAAO,CAAA;AAMlD,UAAU,gBAAgB;IACxB,IAAI,EAAE,IAAI,CAAA;IACV,QAAQ,CAAC,EAAE,MAAM,IAAI,CAAA;IACrB,SAAS,CAAC,EAAE,OAAO,CAAA;CACpB;AAED,eAAO,MAAM,WAAW,yFAmEvB,CAAA"}

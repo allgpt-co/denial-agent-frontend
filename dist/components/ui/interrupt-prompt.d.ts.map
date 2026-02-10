@@ -1,1 +1,0 @@
-{"version":3,"file":"interrupt-prompt.d.ts","sourceRoot":"","sources":["../../../src/components/ui/interrupt-prompt.tsx"],"names":[],"mappings":"AAGA,UAAU,oBAAoB;IAC5B,MAAM,EAAE,OAAO,CAAA;IACf,KAAK,EAAE,MAAM,IAAI,CAAA;CAClB;AAED,wBAAgB,eAAe,CAAC,EAAE,MAAM,EAAE,KAAK,EAAE,EAAE,oBAAoB,2CA8BtE"}

@@ -1,1 +1,0 @@
-{"version":3,"file":"audio-visualizer.d.ts","sourceRoot":"","sources":["../../../src/components/ui/audio-visualizer.tsx"],"names":[],"mappings":"AAkBA,UAAU,oBAAoB;IAC5B,MAAM,EAAE,WAAW,GAAG,IAAI,CAAA;IAC1B,WAAW,EAAE,OAAO,CAAA;IACpB,OAAO,EAAE,MAAM,IAAI,CAAA;CACpB;AAED,wBAAgB,eAAe,CAAC,EAC9B,MAAM,EACN,WAAW,EACX,OAAO,GACR,EAAE,oBAAoB,2CAyKtB"}
