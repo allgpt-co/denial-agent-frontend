@@ -1,7 +1,7 @@
+import './index.css';
 /**
  * @package @quickintell/agent-chat
- * A reusable React library for building chat interfaces with AI agents.
- * When using as a module, import styles separately: import '@quickintell/agent-chat/index.css'
+ * A reusable React library for building chat interfaces with AI agents
  */
 export { AgentChat } from './components/AgentChat';
 export { AgentChat as FullChatbot } from './components/AgentChat';
