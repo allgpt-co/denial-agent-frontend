@@ -109,9 +109,9 @@ export function MessageInput({
   const addFiles = (files: File[] | null) => {
     console.log('addFiles called with:', files ? files.map(f => ({ name: f.name, size: f.size, type: f.type })) : null)
     console.log('allowAttachments:', props.allowAttachments)
-    console.log('setFiles available:', !!props.setFiles)
-    
-    if (props.allowAttachments && props.setFiles) {
+    console.log('setFiles available:', 'setFiles' in props ? !!props.setFiles : false)
+
+    if (props.allowAttachments && 'setFiles' in props && props.setFiles) {
       props.setFiles((currentFiles) => {
         console.log('Current files in state:', currentFiles)
         if (currentFiles === null) {
@@ -128,7 +128,7 @@ export function MessageInput({
         return newFiles
       })
     } else {
-      console.warn('Cannot add files: allowAttachments is', props.allowAttachments, 'setFiles is', !!props.setFiles)
+      console.warn('Cannot add files: allowAttachments is', props.allowAttachments, 'setFiles is', 'setFiles' in props ? !!props.setFiles : false)
     }
   }
 
