@@ -381,11 +381,14 @@ export const ChatForm = forwardRef<HTMLFormElement, ChatFormProps>(
         const [files, setFiles] = useState<File[] | null>(null)
 
         const onSubmit = (event: React.FormEvent) => {
-            if (!files) {
+            // Check if files exist and have length
+            if (!files || files.length === 0) {
+                console.log('Form submitted without files')
                 handleSubmit(event)
                 return
             }
 
+            console.log('Form submitted with files:', files.map(f => ({ name: f.name, size: f.size, type: f.type })))
             const fileList = createFileList(files)
             handleSubmit(event, { experimental_attachments: fileList })
             setFiles(null)

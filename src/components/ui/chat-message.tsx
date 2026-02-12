@@ -261,7 +261,13 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                         "mb-1 flex flex-wrap gap-2",
                         isUser ? "justify-end" : "justify-start"
                     )}>
-                        {files.map((file, index) => <FilePreview file={file} key={index} />)}
+                        {files.map((file, index) => (
+                            <FilePreview 
+                                file={file} 
+                                key={index} 
+                                clickable={true}
+                            />
+                        ))}
                     </div>
                 )}
 

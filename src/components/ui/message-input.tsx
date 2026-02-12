@@ -107,9 +107,15 @@ export function MessageInput({
   }, [isGenerating])
 
   const addFiles = (files: File[] | null) => {
-    if (props.allowAttachments) {
+    console.log('addFiles called with:', files ? files.map(f => ({ name: f.name, size: f.size, type: f.type })) : null)
+    console.log('allowAttachments:', props.allowAttachments)
+    console.log('setFiles available:', !!props.setFiles)
+    
+    if (props.allowAttachments && props.setFiles) {
       props.setFiles((currentFiles) => {
+        console.log('Current files in state:', currentFiles)
         if (currentFiles === null) {
+          console.log('Setting initial files:', files)
           return files
         }
 
@@ -117,8 +123,12 @@ export function MessageInput({
           return currentFiles
         }
 
-        return [...currentFiles, ...files]
+        const newFiles = [...currentFiles, ...files]
+        console.log('Files added to state:', newFiles.map(f => ({ name: f.name, size: f.size, type: f.type })))
+        return newFiles
       })
+    } else {
+      console.warn('Cannot add files: allowAttachments is', props.allowAttachments, 'setFiles is', !!props.setFiles)
     }
   }
 
@@ -296,22 +306,32 @@ export function MessageInput({
           {props.allowAttachments && (
             <AttachmentButton
               onClick={async () => {
-                const files = await showFileUploadDialog()
-                if (files && files.length > 0) {
-                  // Validate files before adding
-                  try {
-                    const validation = validateFiles(files)
-                    if (!validation.valid) {
-                      // Show error toast or alert
-                      alert(validation.error || 'File validation failed')
-                      return
+                console.log('Attachment button clicked')
+                try {
+                  const files = await showFileUploadDialog()
+                  console.log('Files selected from dialog:', files ? files.map(f => ({ name: f.name, size: f.size, type: f.type })) : null)
+                  if (files && files.length > 0) {
+                    // Validate files before adding
+                    try {
+                      const validation = validateFiles(files)
+                      if (!validation.valid) {
+                        // Show error toast or alert
+                        console.error('File validation failed:', validation.error)
+                        alert(validation.error || 'File validation failed')
+                        return
+                      }
+                      console.log('Files validated, adding to state...')
+                      addFiles(files)
+                    } catch (error) {
+                      console.error('Error validating files:', error)
+                      // Still add files if validation import fails
+                      addFiles(files)
                     }
-                    addFiles(files)
-                  } catch (error) {
-                    console.error('Error validating files:', error)
-                    // Still add files if validation import fails
-                    addFiles(files)
+                  } else {
+                    console.log('No files selected or dialog was cancelled')
                   }
+                } catch (error) {
+                  console.error('Error in file upload dialog:', error)
                 }
               }}
             />
@@ -326,7 +346,7 @@ export function MessageInput({
           <SubmitActionButton
             isGenerating={isGenerating}
             stop={stop}
-            disabled={props.value === "" || isGenerating}
+            disabled={(props.value === "" && (!props.allowAttachments || !props.files?.length)) || isGenerating}
           />
         </TooltipProvider>
       </div>
@@ -375,35 +395,82 @@ function showFileUploadDialog(): Promise<File[] | null> {
   input.multiple = true
   input.accept = "*/*"
   input.style.display = "none"
+  document.body.appendChild(input)
 
   return new Promise<File[] | null>((resolve) => {
     let resolved = false
+    let filesSelected = false
+    let focusTimeoutId: ReturnType<typeof setTimeout> | null = null
+
     const finish = (value: File[] | null) => {
       if (resolved) return
       resolved = true
+      // Clear any pending focus timeout
+      if (focusTimeoutId) {
+        clearTimeout(focusTimeoutId)
+        focusTimeoutId = null
+      }
       cleanup()
       resolve(value)
     }
 
     const cleanup = () => {
       window.removeEventListener("focus", onWindowFocus)
-      clearTimeout(focusTimeoutId)
+      // Remove input from DOM after a delay to ensure it's cleaned up
+      setTimeout(() => {
+        try {
+          if (input.parentNode) {
+            input.parentNode.removeChild(input)
+          }
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+      }, 100)
     }
 
-    let focusTimeoutId: ReturnType<typeof setTimeout>
-
-    const onWindowFocus = () => {
-      // When dialog closes (cancel or after select), window gets focus.
-      // Delay so onchange can run first if user selected files.
-      focusTimeoutId = setTimeout(() => finish(null), 100)
-    }
-
+    // Handle file selection - this is the primary way files are selected
     input.onchange = (e) => {
       const files = (e.currentTarget as HTMLInputElement).files
-      finish(files && files.length ? Array.from(files) : null)
+      console.log('File input onchange fired, files:', files ? Array.from(files).map(f => f.name) : null)
+      if (files && files.length > 0) {
+        filesSelected = true
+        // Clear any pending focus timeout since we got files
+        if (focusTimeoutId) {
+          clearTimeout(focusTimeoutId)
+          focusTimeoutId = null
+        }
+        finish(Array.from(files))
+      }
     }
 
-    window.addEventListener("focus", onWindowFocus)
+    // Handle window focus (dialog closed) - only resolve with null if no files were selected
+    const onWindowFocus = () => {
+      // Give onchange event time to fire first, then check input directly
+      focusTimeoutId = setTimeout(() => {
+        if (!resolved) {
+          // Check the input element directly to see if files were selected
+          const inputFiles = input.files
+          if (inputFiles && inputFiles.length > 0) {
+            // Files were selected but onchange hasn't fired yet, process them now
+            console.log('Files found on input element (onchange delayed):', Array.from(inputFiles).map(f => f.name))
+            filesSelected = true
+            finish(Array.from(inputFiles))
+          } else if (!filesSelected) {
+            // No files selected, user cancelled
+            console.log('Dialog closed without file selection (cancelled)')
+            finish(null)
+          }
+        }
+      }, 200) // Check after a short delay
+    }
+
+    // Add focus listener after dialog opens
+    setTimeout(() => {
+      window.addEventListener("focus", onWindowFocus, { once: true })
+    }, 100)
+
+    // Trigger file dialog
+    console.log('Opening file dialog...')
     input.click()
   })
 }

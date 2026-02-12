@@ -3,6 +3,7 @@ import { Download, FileIcon } from "lucide-react"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -22,6 +23,12 @@ export const FileViewerDialog: React.FC<FileViewerDialogProps> = ({
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [textContent, setTextContent] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      console.log('FileViewerDialog opened:', file?.name, 'open:', open, 'file:', file)
+    }
+  }, [open, file])
 
   useEffect(() => {
     if (!file || !open) {
@@ -53,13 +60,15 @@ export const FileViewerDialog: React.FC<FileViewerDialogProps> = ({
       }
     }
 
-    if (
-      file.type.startsWith("text/") ||
-      file.name.endsWith(".txt") ||
-      file.name.endsWith(".md") ||
-      file.name.endsWith(".json") ||
-      file.name.endsWith(".csv")
-    ) {
+    // Check if file is text-based (by extension or type)
+    const textExtensions = [".txt", ".md", ".json", ".csv", ".edi", ".xml", ".html", ".css", ".js", ".ts", ".py", ".java", ".c", ".cpp", ".h", ".log", ".ini", ".conf", ".yaml", ".yml"]
+    const isTextFile = file.type.startsWith("text/") || 
+                      textExtensions.some(ext => file.name.toLowerCase().endsWith(ext)) ||
+                      file.type === "application/json" ||
+                      file.type === "application/xml" ||
+                      file.type === "text/xml"
+    
+    if (isTextFile) {
       const reader = new FileReader()
       reader.onload = (e) => {
         setTextContent(e.target?.result as string)
@@ -91,12 +100,30 @@ export const FileViewerDialog: React.FC<FileViewerDialogProps> = ({
   if (!file) return null
 
   const isImage = file.type.startsWith("image/")
+  const textExtensions = [".txt", ".md", ".json", ".csv", ".edi", ".xml", ".html", ".css", ".js", ".ts", ".py", ".java", ".c", ".cpp", ".h", ".log", ".ini", ".conf", ".yaml", ".yml"]
   const isText =
     file.type.startsWith("text/") ||
-    file.name.endsWith(".txt") ||
-    file.name.endsWith(".md") ||
-    file.name.endsWith(".json") ||
-    file.name.endsWith(".csv")
+    textExtensions.some(ext => file.name.toLowerCase().endsWith(ext)) ||
+    file.type === "application/json" ||
+    file.type === "application/xml" ||
+    file.type === "text/xml"
+
+  console.log('FileViewerDialog render:', { 
+    fileName: file?.name, 
+    fileType: file?.type, 
+    open, 
+    isLoading, 
+    isImage, 
+    isText, 
+    hasTextContent: !!textContent,
+    textContentLength: textContent?.length,
+    hasImageUrl: !!imageUrl
+  })
+
+  if (!file) {
+    console.log('FileViewerDialog: No file provided, returning null')
+    return null
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -117,6 +144,9 @@ export const FileViewerDialog: React.FC<FileViewerDialogProps> = ({
               Download
             </Button>
           </div>
+          <DialogDescription className="sr-only">
+            File viewer for {file.name}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-auto min-h-0">

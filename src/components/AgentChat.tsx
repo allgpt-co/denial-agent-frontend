@@ -265,7 +265,10 @@ export function AgentChat({
 
     // Unified Send Message Logic
     const handleSendMessage = async (content: string, files?: FileList | File[]) => {
-        if (!content.trim() || !client) return
+        // Allow sending if there's content OR files, but client must be available
+        const hasContent = content.trim().length > 0
+        const hasFiles = files && files.length > 0
+        if ((!hasContent && !hasFiles) || !client) return
 
         // Convert files to data URLs for display
         const fileAttachments = files ? await Promise.all(
@@ -292,10 +295,13 @@ export function AgentChat({
             })
         ) : undefined
 
+        // Use default message if content is empty but files are present
+        const messageContent = content.trim() || (hasFiles ? 'Please analyze the attached files.' : '')
+        
         const userMsg: Message = {
             id: crypto.randomUUID(),
             role: 'user',
-            content,
+            content: messageContent,
             createdAt: new Date(),
             experimental_attachments: fileAttachments,
         }
@@ -316,9 +322,11 @@ export function AgentChat({
             if (files && files.length > 0) {
                 try {
                     const fileArray = Array.from(files)
+                    console.log('Uploading files:', fileArray.map(f => ({ name: f.name, size: f.size, type: f.type })))
                     // Validate files before uploading
                     const validation = validateFiles(fileArray)
                     if (!validation.valid) {
+                        console.error('File validation failed:', validation.error)
                         setMessages((prev) => [...prev, {
                             id: crypto.randomUUID(),
                             role: 'assistant',
@@ -347,7 +355,7 @@ export function AgentChat({
 
             if (enableStreaming) {
                 const stream = client.stream({
-                    message: content,
+                    message: content.trim() || (hasFiles ? 'Please analyze the attached files.' : ''),
                     model: currentModel || undefined,
                     attachments: attachments.length > 0 ? attachments : undefined,
                     ...threadConfig
@@ -409,7 +417,7 @@ export function AgentChat({
                 })
             } else {
                 const response = await client.invoke({
-                    message: content,
+                    message: content.trim() || (hasFiles ? 'Please analyze the attached files.' : ''),
                     model: currentModel || undefined,
                     attachments: attachments.length > 0 ? attachments : undefined,
                     ...threadConfig
@@ -426,11 +434,12 @@ export function AgentChat({
                 }])
             }
         } catch (err) {
+            console.log("Error: ", err);
             if (err instanceof Error) onError?.(err)
             setMessages((prev) => [...prev, {
                 id: crypto.randomUUID(),
                 role: 'assistant',
-                content: 'Error processing request. Please try again.',
+                content: 'More Information required to proceed',
                 createdAt: new Date()
             }])
         } finally {
@@ -459,7 +468,12 @@ export function AgentChat({
     ) => {
         event?.preventDefault?.()
         const files = options?.experimental_attachments
-        handleSendMessage(input, files ? Array.from(files) : undefined)
+        // Convert FileList to array if it exists and has files
+        const filesArray = files && files.length > 0 ? Array.from(files) : undefined
+        if (filesArray) {
+            console.log('Files being sent:', filesArray.map(f => ({ name: f.name, size: f.size, type: f.type })))
+        }
+        handleSendMessage(input, filesArray)
     }
 
     // Handle Input Change

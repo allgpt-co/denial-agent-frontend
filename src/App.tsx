@@ -15,9 +15,9 @@ function App() {
                 <main className="flex-1 overflow-hidden">
                     <AgentChat
                         baseUrl="https://denial.quickintell.com/agent"
-                        agent="ehr-agent"
+                        agent="denial-resolver-agent"
                         model="gpt-4o"
-                        enableStreaming={true}
+                        enableStreaming={false}
                         showSettings={true}
                         showHeader={true}
                         suggestions={SUGGESTIONS}
