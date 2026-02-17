@@ -375,6 +375,33 @@ export class AgentClient {
         }
     }
 
+    async deleteThread(threadId: string, userId: string): Promise<void> {
+        try {
+            const controller = new AbortController()
+            const timeoutId = this.timeout
+                ? setTimeout(() => controller.abort(), this.timeout)
+                : undefined
+
+            const url = `${this.baseUrl}/threads/${encodeURIComponent(threadId)}?user_id=${encodeURIComponent(userId)}`
+            const response = await fetch(url, {
+                method: 'DELETE',
+                headers: this.headers,
+                signal: controller.signal,
+            })
+
+            if (timeoutId) clearTimeout(timeoutId)
+
+            if (!response.ok) {
+                throw new AgentClientError(`HTTP error! status: ${response.status}`)
+            }
+        } catch (error) {
+            if (error instanceof Error) {
+                throw new AgentClientError(`Error deleting thread: ${error.message}`)
+            }
+            throw error
+        }
+    }
+
     async uploadFile(file: File): Promise<FileAttachment> {
         try {
             const formData = new FormData()

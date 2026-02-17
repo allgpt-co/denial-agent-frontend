@@ -26,10 +26,11 @@ interface ChatHeaderProps {
     onVoiceChange: (voice: SpeechSynthesisVoice | null) => void;
     autoSpeak: boolean;
     onAutoSpeakChange: (autoSpeak: boolean) => void;
+    onDeleteThread?: (threadId: string) => void;
     onExpand?: () => void;
     isExpanded?: boolean;
     onClose?: () => void;
 }
-export declare function ChatHeader({ currentAgent, isRefreshing, onNewChat, isHistoryOpen, onHistoryOpenChange, threads, currentThreadId, onSelectThread, onFetchHistory, direction, showSettings, availableAgents, onAgentChange, currentModel, onModelChange, availableModels, voiceConfig, onVoiceConfigChange, availableVoices, selectedVoice, onVoiceChange, autoSpeak, onAutoSpeakChange, onExpand, isExpanded, onClose }: ChatHeaderProps): import("react/jsx-runtime").JSX.Element;
+export declare function ChatHeader({ currentAgent, isRefreshing, onNewChat, isHistoryOpen, onHistoryOpenChange, threads, currentThreadId, onSelectThread, onFetchHistory, direction, showSettings, availableAgents, onAgentChange, currentModel, onModelChange, availableModels, voiceConfig, onVoiceConfigChange, availableVoices, selectedVoice, onVoiceChange, autoSpeak, onAutoSpeakChange, onDeleteThread, onExpand, isExpanded, onClose }: ChatHeaderProps): import("react/jsx-runtime").JSX.Element;
 export {};
 //# sourceMappingURL=ChatHeader.d.ts.map

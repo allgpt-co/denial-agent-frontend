@@ -1,4 +1,4 @@
-import { Maximize2, Minimize2, RefreshCcw, Sparkles, X } from 'lucide-react'
+import { Maximize2, Minimize2, RefreshCcw, Sparkles, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ChatHistory } from './ChatHistory'
@@ -35,6 +35,7 @@ interface ChatHeaderProps {
     onAutoSpeakChange: (autoSpeak: boolean) => void
 
     // Action props
+    onDeleteThread?: (threadId: string) => void
     onExpand?: () => void
     isExpanded?: boolean
     onClose?: () => void
@@ -64,6 +65,7 @@ export function ChatHeader({
     onVoiceChange,
     autoSpeak,
     onAutoSpeakChange,
+    onDeleteThread,
     onExpand,
     isExpanded,
     onClose
@@ -118,6 +120,18 @@ export function ChatHeader({
                     >
                         <RefreshCcw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
                     </Button>
+
+                    {onDeleteThread && currentThreadId && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onDeleteThread(currentThreadId)}
+                            title="Delete this conversation"
+                            className="h-8 w-8 rounded-lg hover:bg-destructive/10 hover:text-destructive transition-colors"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    )}
 
                     {onExpand && (
                         <Button

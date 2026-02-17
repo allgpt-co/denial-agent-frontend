@@ -14,9 +14,11 @@ function App() {
             <div className="h-screen bg-background flex w-full flex-col">
                 <main className="flex-1 overflow-hidden">
                     <AgentChat
-                        baseUrl="https://denial.quickintell.com/agent"
+                        baseUrl="http://localhost:8080/agent"
                         agent="denial-resolver-agent"
                         model="gpt-4o"
+                        userId="019c69f5-02c0-7844-a9ec-97bfd5688880"
+                        threadId='b4ab55f3-be28-4cf3-b361-95f1d80f4a60'
                         enableStreaming={false}
                         showSettings={true}
                         showHeader={true}

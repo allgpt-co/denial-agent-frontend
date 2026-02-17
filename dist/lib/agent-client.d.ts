@@ -32,6 +32,7 @@ export declare class AgentClient {
     createFeedback(feedback: Feedback): Promise<void>;
     getHistory(input: ChatHistoryInput): Promise<ChatHistory>;
     listThreads(limit?: number, offset?: number, userId?: string | null): Promise<import('./types').Thread[]>;
+    deleteThread(threadId: string, userId: string): Promise<void>;
     uploadFile(file: File): Promise<FileAttachment>;
     uploadFiles(files: File[]): Promise<FileAttachment[]>;
 }

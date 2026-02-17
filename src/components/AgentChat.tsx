@@ -145,9 +145,6 @@ export function AgentChat({
 
         initClient()
     }, [baseUrl]) // Only re-init if baseUrl changes
-    console.log('Loading thread', threadId)
-    console.log('User ID', userId)
-    console.log('Version 1.0')
 
     // Update Client when Agent changes
     useEffect(() => {
@@ -167,9 +164,13 @@ export function AgentChat({
         }
     }, [currentAgent, client, availableAgents, messages.length, suggestions])
 
-    // Fetch History Threads
+    // Fetch History Threads (only when userId is set – history is scoped to that user)
     const fetchHistory = useCallback(async () => {
         if (!client) return
+        if (userId == null || userId === '') {
+            setThreads([])
+            return
+        }
         try {
             const threadList = await client.listThreads(20, 0, userId)
             setThreads(threadList)
@@ -248,7 +249,7 @@ export function AgentChat({
         }
     }
 
-    const handleNewChat = () => {
+    const handleNewChat = useCallback(() => {
         setIsRefreshing(true)
         setTimeout(() => setIsRefreshing(false), 1000)
 
@@ -261,7 +262,18 @@ export function AgentChat({
         setCurrentThreadId(null)
         setInput('')
         setIsHistoryOpen(false)
-    }
+    }, [client?.agent, createWelcomeMessage, suggestions])
+
+    const handleDeleteCurrentThread = useCallback(async () => {
+        if (!currentThreadId || !userId || !client) return
+        try {
+            await client.deleteThread(currentThreadId, userId)
+            handleNewChat()
+            await fetchHistory()
+        } catch (err) {
+            if (err instanceof Error) onError?.(err)
+        }
+    }, [currentThreadId, userId, client, onError, fetchHistory, handleNewChat])
 
     // Unified Send Message Logic
     const handleSendMessage = async (content: string, files?: FileList | File[]) => {
@@ -530,6 +542,7 @@ export function AgentChat({
                         currentAgent={currentAgent}
                         isRefreshing={isRefreshing}
                         onNewChat={handleNewChat}
+                        onDeleteThread={handleDeleteCurrentThread}
                         isHistoryOpen={isHistoryOpen}
                         onHistoryOpenChange={setIsHistoryOpen}
                         threads={threads}
