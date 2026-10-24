@@ -1,5 +1,6 @@
 export interface AgentChatProps {
     baseUrl: string;
+    authSecret?: string;
     agent?: string;
     model?: string;
     userId?: string;
@@ -19,5 +20,5 @@ export interface AgentChatProps {
     isExpanded?: boolean;
     onClose?: () => void;
 }
-export declare function AgentChat({ baseUrl, agent: initialAgent, userId, enableStreaming, suggestions, onError, onRateResponse, className, showSettings, showHeader, placeholder, direction, input: propInput, setInput: propSetInput, model: initialModel, threadId, onExpand, isExpanded, onClose, }: AgentChatProps): import("react/jsx-runtime").JSX.Element;
+export declare function AgentChat({ baseUrl, authSecret, agent: initialAgent, userId, enableStreaming, suggestions, onError, onRateResponse, className, showSettings, showHeader, placeholder, direction, input: propInput, setInput: propSetInput, model: initialModel, threadId, onExpand, isExpanded, onClose, }: AgentChatProps): import("react/jsx-runtime").JSX.Element;
 //# sourceMappingURL=AgentChat.d.ts.map
