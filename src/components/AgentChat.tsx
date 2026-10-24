@@ -11,6 +11,7 @@ import { validateFiles } from '@/lib/constants'
 
 export interface AgentChatProps {
     baseUrl: string
+    authSecret?: string
     agent?: string
     model?: string
     userId?: string
@@ -33,6 +34,7 @@ export interface AgentChatProps {
 
 export function AgentChat({
     baseUrl,
+    authSecret = undefined,
     agent: initialAgent = 'default',
     userId = undefined,
     enableStreaming = true,
@@ -114,6 +116,7 @@ export function AgentChat({
 
                 const newClient = new AgentClient({
                     baseUrl,
+                    authSecret,
                     agent: agentToUse,
                     getInfo: true,
                 })
@@ -144,7 +147,7 @@ export function AgentChat({
         }
 
         initClient()
-    }, [baseUrl]) // Only re-init if baseUrl changes
+    }, [baseUrl, authSecret]) // Only re-init if baseUrl or authSecret changes
 
     // Update Client when Agent changes
     useEffect(() => {
@@ -205,7 +208,7 @@ export function AgentChat({
                                     // Fetch file from backend
                                     // baseUrl already includes /agent, so just append /files/
                                     const fileUrl = `${baseUrl}/files/${att.file_id}`
-                                    const response = await fetch(fileUrl)
+                                    const response = await fetch(fileUrl, authSecret ? { headers: { Authorization: `Bearer ${authSecret}` } } : undefined)
                                     if (!response.ok) {
                                         console.warn(`Failed to load file ${att.file_id}`)
                                         return null
